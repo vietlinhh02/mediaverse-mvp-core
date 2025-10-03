@@ -1,0 +1,458 @@
+// Prisma schema file
+// Complete data models for Mediaverse MVP
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// User model
+model User {
+  id           String   @id @default(uuid(7))
+  email        String   @unique
+  username     String   @unique
+  passwordHash String?  // Optional for OAuth users
+  role         String   @default("user") // user, admin, moderator
+  status       String   @default("active") // active, suspended, banned
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  otp                  String?
+  otpExpiresAt         DateTime?
+  lastLogin            DateTime?
+
+  // OAuth providers data stored as JSON
+  oauthProviders       Json?
+
+  // Relations
+  profile         Profile?
+  ownedChannels   Channel[]           @relation("ChannelOwner")
+  content         Content[]           @relation("ContentAuthor")
+  likes           Like[]
+  comments        Comment[]
+  followers       Follow[]            @relation("UserFollowers")
+  following       Follow[]            @relation("UserFollowing")
+  reports         Report[]            @relation("ReportReporter")
+  reportedContent Report[]            @relation("ReportedUser")
+  notifications   Notification[]
+  shares          Share[]
+  communityPosts  CommunityPost[]
+  jobs            Job[]
+  moderationLogs  ModerationLog[]     @relation("ModeratedUser")
+  moderatorActions ModerationLog[]    @relation("Moderator")
+  contentViews    ContentView[]
+
+  @@index([email], name: "idx_users_email")
+  @@index([username], name: "idx_users_username")
+  @@map("users")
+}
+
+// Profile model
+model Profile {
+  id            String   @id @default(uuid(7))
+  userId        String   @unique
+  displayName   String
+  bio           String?
+  avatarUrl     String?
+  coverImageUrl String?
+  location      String?  // Thêm field location
+  website       String?  // Thêm field website
+  phoneNumber   String?  // Thêm field phone number
+  dateOfBirth   DateTime? // Thêm field date of birth
+  gender        String?  // Thêm field gender
+  occupation    String?  // Thêm field occupation
+  company       String?  // Thêm field company
+  education     String?  // Thêm field education
+  socialLinks   Json     @default("{}") // Thêm field social media links
+  preferences   Json     @default("{}")
+  stats         Json     @default("{}")
+  isVerified    Boolean  @default(false) // Thêm field verified status
+  isPublic      Boolean  @default(true)  // Thêm field privacy setting
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("profiles")
+}
+
+// Channel model
+model Channel {
+  id              String   @id @default(uuid(7))
+  ownerId         String
+  name            String
+  description     String?
+  bannerImageUrl  String?
+  trailerContentId String?
+  featuredContent Json?
+  category        String
+  tags            String[]
+  subscriberCount Int      @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Relations
+  owner   User      @relation("ChannelOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  content Content[]
+  playlists Playlist[]
+
+  @@map("channels")
+}
+
+// Content model
+model Content {
+  id             String    @id @default(uuid(7))
+  type           String    // article, video, document, image
+  authorId       String
+  channelId      String?
+  title          String
+  body           String?   // Content body for articles, videos, documents
+  description    String?
+  featuredImage  String?   // Featured/thumbnail image URL for articles
+  status         String    @default("draft") // draft, published, archived
+  visibility     String    @default("public") // public, private, unlisted
+  category       String
+  tags           String[]
+  metadata       Json      @default("{}")
+  stats          Json      @default("{}")
+
+  // Recommendation system fields
+  views          Int       @default(0) // Total views count
+  likesCount     Int       @default(0) // Cached likes count for performance
+  commentsCount  Int       @default(0) // Cached comments count for performance
+  trendingScore  Float     @default(0.0) // Calculated trending score
+  relevanceScore Float     @default(0.0) // Search relevance score
+
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  publishedAt    DateTime?
+
+  // Relations
+  author   User           @relation("ContentAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  channel  Channel?       @relation(fields: [channelId], references: [id], onDelete: SetNull)
+  likes    Like[]
+  comments Comment[]
+  reports  Report[]       @relation("ReportedContent")
+  shares   Share[]
+  playlistItems PlaylistItem[]
+  contentViews ContentView[]
+  dailySummaries AnalyticsSummaryDaily[]
+
+  @@index([authorId], name: "idx_content_author_id")
+  @@index([category], name: "idx_content_category")
+  @@index([publishedAt], name: "idx_content_published_at")
+  @@index([tags], name: "idx_content_tags", type: Gin)
+  @@map("content")
+}
+
+// Like model
+model Like {
+  id               String   @id @default(uuid(7))
+  userId           String
+  contentId        String?
+  commentId        String?
+  communityPostId  String?
+  createdAt        DateTime @default(now())
+
+  // Relations
+  user         User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  content      Content?         @relation(fields: [contentId], references: [id], onDelete: Cascade)
+  comment      Comment?         @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  communityPost CommunityPost?   @relation("CommunityPostLikes", fields: [communityPostId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, contentId])
+  @@unique([userId, commentId])
+  @@unique([userId, communityPostId])
+  @@map("likes")
+}
+
+// Comment model
+model Comment {
+  id               String   @id @default(uuid(7))
+  userId           String
+  contentId        String?
+  communityPostId  String?
+  parentId         String?
+  text             String
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  // Relations
+  user         User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  content      Content?        @relation(fields: [contentId], references: [id], onDelete: Cascade)
+  communityPost CommunityPost? @relation("CommunityPostComments", fields: [communityPostId], references: [id], onDelete: Cascade)
+  parent       Comment?        @relation("CommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
+  replies      Comment[]       @relation("CommentReplies")
+  likes        Like[]
+
+  @@map("comments")
+}
+
+// Follow model
+model Follow {
+  id          String   @id @default(uuid(7))
+  followerId  String
+  followeeId  String
+  createdAt   DateTime @default(now())
+
+  // Relations
+  follower User @relation("UserFollowers", fields: [followerId], references: [id], onDelete: Cascade)
+  followee User @relation("UserFollowing", fields: [followeeId], references: [id], onDelete: Cascade)
+
+  @@unique([followerId, followeeId])
+  @@map("follows")
+}
+
+// Report model
+model Report {
+  id          String         @id @default(uuid(7))
+  reporterId  String
+  contentId   String?
+  userId      String?
+  reason      ReportReason
+  description String?
+  status      ReportStatus   @default(PENDING)
+  priority    ReportPriority @default(MEDIUM)
+  reviewedBy  String?
+  reviewedAt  DateTime?
+  decision    String?        // approved, removed, warning
+  createdAt   DateTime       @default(now())
+
+  // Relations
+  reporter        User     @relation("ReportReporter", fields: [reporterId], references: [id], onDelete: Cascade)
+  reportedContent Content? @relation("ReportedContent", fields: [contentId], references: [id], onDelete: Cascade)
+  reportedUser    User?    @relation("ReportedUser", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("reports")
+}
+
+// Notification model
+model Notification {
+  id        String    @id @default(uuid(7))
+  userId    String
+  type      String    // like, comment, follow, upload, system, marketing
+  category  String    // likes, comments, follows, uploads, system, marketing
+  title     String
+  content   String    // Main notification content/message
+  data      Json      @default("{}") // Additional structured data
+  status    String    @default("unread") // unread, read, archived, deleted
+  createdAt DateTime  @default(now())
+  readAt    DateTime? // When notification was read
+  updatedAt DateTime  @updatedAt
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, status], name: "idx_notifications_user_status")
+  @@index([userId, createdAt], name: "idx_notifications_user_created")
+  @@index([category, createdAt], name: "idx_notifications_category_created")
+  @@map("notifications")
+}
+
+// Share model for content sharing tracking
+model Share {
+  id          String   @id @default(uuid(7))
+  userId      String
+  contentId   String
+  platform    String   // facebook, twitter, linkedin, whatsapp, telegram, copy
+  message     String?
+  url         String
+  metadata    Json     @default("{}") // Additional metadata
+  createdAt   DateTime @default(now())
+
+  // Relations
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  content Content @relation(fields: [contentId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, contentId, platform]) // Prevent duplicate shares on same platform
+  @@map("shares")
+}
+
+// Community post model for social features
+model CommunityPost {
+  id          String   @id @default(uuid(7))
+  title       String
+  content     String
+  hashtags    String[] // Array of hashtags
+  visibility  String   @default("public") // public, community, private
+  authorId    String
+  metadata    Json     @default("{}") // Additional metadata
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  author   User            @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  likes    Like[]          @relation("CommunityPostLikes")
+  comments Comment[]       @relation("CommunityPostComments")
+
+  @@map("community_posts")
+}
+
+// Job model for media processing
+model Job {
+  id          String    @id @default(uuid(7))
+  userId      String    // User who initiated the job
+  bullJobId   String?   @unique // To correlate with Bull job ID
+  type        String    // PROCESS_VIDEO, GENERATE_THUMBNAILS, ADAPTIVE_STREAMING, AUDIO_PROCESSING
+  status      String    @default("PENDING") // PENDING, PROCESSING, COMPLETED, FAILED
+  progress    Int       @default(0)
+  data        Json      @default("{}") // Input data for the job
+  result      Json?     // Result of the job
+  error       Json?     // Error details if the job failed
+  contentId   String?   // Link to the content being processed
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  completedAt DateTime?
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([status, type])
+  @@index([userId, status])
+  @@map("jobs")
+}
+
+// Moderation log model for audit trails
+model ModerationLog {
+  id           String   @id @default(uuid(7))
+  moderatorId  String
+  userId       String
+  action       String   // ban, warn, unban, remove_content, etc.
+  reason       String?
+  duration     String?  // For bans
+  notes        String?
+  createdAt    DateTime @default(now())
+
+  // Relations
+  moderator User @relation("Moderator", fields: [moderatorId], references: [id], onDelete: Cascade)
+  user      User @relation("ModeratedUser", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("moderation_logs")
+}
+
+// --- Analytics Models ---
+
+model ContentView {
+  id        String   @id @default(uuid())
+  userId    String?
+  contentId String
+  viewedAt  DateTime @default(now())
+  duration  Int? // in seconds
+  platform  String? // web, mobile-ios, mobile-android
+  ipAddress String?
+  userAgent String?
+  country   String?
+  referrer  String?
+
+  // Relations
+  user    User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
+  content Content @relation(fields: [contentId], references: [id], onDelete: Cascade)
+
+  @@index([userId, contentId])
+  @@index([contentId, viewedAt])
+  @@map("content_views")
+}
+
+model AnalyticsSummaryDaily {
+  id                  String   @id @default(uuid())
+  date                DateTime @db.Date
+  contentId           String?
+  totalViews          Int      @default(0)
+  uniqueVisitors      Int      @default(0)
+  totalLikes          Int      @default(0)
+  totalComments       Int      @default(0)
+  totalShares         Int      @default(0)
+  averageViewDuration Float    @default(0)
+  demographics        Json     @default("{}") // { "age": { "18-24": 50, "25-34": 30 }, "gender": { "male": 60, "female": 40 } }
+  trafficSources      Json     @default("{}") // { "direct": 100, "google": 50, "facebook": 20 }
+  createdAt           DateTime @default(now())
+
+  // Relations
+  content Content? @relation(fields: [contentId], references: [id], onDelete: Cascade)
+
+  @@unique([date, contentId])
+  @@map("analytics_summary_daily")
+}
+
+// --- ENUMS for Moderation Module ---
+
+enum ReportStatus {
+  PENDING
+  UNDER_REVIEW
+  RESOLVED
+}
+
+enum ReportReason {
+  SPAM
+  HARASSMENT
+  INAPPROPRIATE
+  COPYRIGHT
+  OTHER
+}
+
+enum ReportPriority {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+enum ModerationAction {
+  BAN
+  WARN
+  UNBAN
+  REMOVE_CONTENT
+  APPROVE_CONTENT
+}
+
+// --- ENUMS for Playlist Module ---
+
+enum PlaylistVisibility {
+  PUBLIC
+  PRIVATE
+  UNLISTED
+}
+
+enum PlaylistType {
+  PLAYLIST
+  SERIES
+}
+
+// Playlist model
+model Playlist {
+  id          String             @id @default(uuid())
+  channelId   String
+  title       String
+  description String?
+  visibility  PlaylistVisibility @default(PUBLIC)
+  type        PlaylistType       @default(PLAYLIST)
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+
+  // Relations
+  channel Channel       @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  items   PlaylistItem[]
+
+  @@map("playlists")
+}
+
+// PlaylistItem model
+model PlaylistItem {
+  id         String   @id @default(uuid())
+  playlistId String
+  contentId  String
+  order      Int
+  createdAt  DateTime @default(now())
+
+  // Relations
+  playlist Playlist @relation(fields: [playlistId], references: [id], onDelete: Cascade)
+  content  Content  @relation(fields: [contentId], references: [id], onDelete: Cascade)
+
+  @@unique([playlistId, order])
+  @@unique([playlistId, contentId])
+  @@map("playlist_items")
+}
