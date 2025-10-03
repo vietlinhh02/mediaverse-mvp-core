@@ -1,0 +1,728 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Mediaverse Notifications Demo">
+  <title>Notifications Demo - Mediaverse</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 20px;
+      background: #f8f9fa;
+      color: #333;
+      line-height: 1.6;
+    }
+    .container {
+      background: white;
+      border-radius: 12px;
+      padding: 30px;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    }
+    h1 {
+      color: #667eea;
+      margin-bottom: 30px;
+      text-align: center;
+    }
+    .status {
+      padding: 15px;
+      border-radius: 8px;
+      margin: 20px 0;
+      font-weight: 500;
+    }
+    .status.success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+    .status.error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+    .status.info { background: #cce7ff; color: #004085; border: 1px solid #b3d7ff; }
+    .section {
+      margin: 30px 0;
+      padding: 20px;
+      background: #f8f9fa;
+      border-radius: 8px;
+      border-left: 4px solid #667eea;
+    }
+    .section h2 {
+      margin-top: 0;
+      color: #667eea;
+      font-size: 20px;
+    }
+    .form-group {
+      margin: 15px 0;
+    }
+    .form-group label {
+      display: block;
+      margin-bottom: 5px;
+      font-weight: 600;
+    }
+    .form-group input, .form-group select, .form-group textarea {
+      width: 100%;
+      padding: 10px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      font-size: 14px;
+    }
+    .form-group textarea { resize: vertical; min-height: 80px; }
+    .button {
+      background: #667eea;
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 16px;
+      margin: 10px 5px;
+      transition: background 0.3s;
+    }
+    .button:hover { background: #5a6fd8; }
+    .button.secondary { background: #6c757d; }
+    .button.secondary:hover { background: #545b62; }
+    .button.danger { background: #dc3545; }
+    .button.danger:hover { background: #c82333; }
+    .button:disabled {
+      background: #cccccc;
+      cursor: not-allowed;
+    }
+    .notification-list {
+      margin-top: 15px;
+    }
+    .notification-item {
+      background: white;
+      border: 1px solid #e9ecef;
+      border-radius: 8px;
+      padding: 15px;
+      margin: 10px 0;
+      position: relative;
+    }
+    .notification-item.unread {
+      border-left: 4px solid #667eea;
+      background: #f8f9ff;
+    }
+    .notification-item.read {
+      border-left: 4px solid #28a745;
+      background: #f8fff9;
+    }
+    .notification-item.archived {
+      border-left: 4px solid #ffc107;
+      background: #fffef8;
+    }
+    .notification-item.deleted {
+      border-left: 4px solid #dc3545;
+      background: #fff8f8;
+    }
+    .notification-header {
+      display: flex;
+      justify-content: between;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+    .notification-title {
+      font-weight: 600;
+      margin: 0;
+    }
+    .notification-meta {
+      font-size: 12px;
+      color: #666;
+      margin: 5px 0;
+    }
+    .notification-content {
+      margin: 10px 0;
+    }
+    .notification-actions {
+      margin-top: 10px;
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .action-btn {
+      font-size: 12px;
+      padding: 6px 12px;
+    }
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 15px;
+      margin: 15px 0;
+    }
+    .stat-card {
+      background: white;
+      padding: 15px;
+      border-radius: 8px;
+      text-align: center;
+      border: 1px solid #e9ecef;
+    }
+    .stat-number {
+      font-size: 24px;
+      font-weight: bold;
+      color: #667eea;
+      margin-bottom: 5px;
+    }
+    .stat-label {
+      font-size: 14px;
+      color: #666;
+      margin: 0;
+    }
+    .filters {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 15px;
+      margin: 15px 0;
+      align-items: center;
+    }
+    .filter-group {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+    }
+    .checkbox-group {
+      display: flex;
+      gap: 15px;
+      flex-wrap: wrap;
+    }
+    .checkbox-item {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .pagination {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 10px;
+      margin: 20px 0;
+    }
+    .pagination button {
+      padding: 8px 12px;
+      border: 1px solid #ddd;
+      background: white;
+      cursor: pointer;
+      border-radius: 4px;
+    }
+    .pagination button:disabled {
+      background: #f8f9fa;
+      cursor: not-allowed;
+    }
+    .pagination span {
+      font-weight: 600;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🔔 Notification Storage Demo</h1>
+
+    <div id="status" class="status info">
+      Loading notification system...
+    </div>
+
+    <!-- Create Notification Section -->
+    <div class="section">
+      <h2>📝 Create Notification</h2>
+      <form id="create-form">
+        <div class="form-group">
+          <label for="notif-type">Type:</label>
+          <select id="notif-type" required>
+            <option value="like">Like</option>
+            <option value="comment">Comment</option>
+            <option value="follow">Follow</option>
+            <option value="upload">Upload</option>
+            <option value="system">System</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="notif-title">Title:</label>
+          <input type="text" id="notif-title" placeholder="Notification title" required>
+        </div>
+        <div class="form-group">
+          <label for="notif-content">Content:</label>
+          <textarea id="notif-content" placeholder="Notification content/message" required></textarea>
+        </div>
+        <button type="submit" class="button">Create Notification</button>
+      </form>
+    </div>
+
+    <!-- Bulk Operations Section -->
+    <div class="section">
+      <h2>⚡ Batch Operations</h2>
+      <div class="form-group">
+        <label>Select notifications:</label>
+        <div id="batch-checkboxes" class="checkbox-group">
+          <!-- Checkboxes will be populated dynamically -->
+        </div>
+      </div>
+      <button id="mark-read-batch" class="button">Mark Selected as Read</button>
+      <button id="archive-batch" class="button secondary">Archive Selected</button>
+      <button id="delete-batch" class="button danger">Delete Selected</button>
+    </div>
+
+    <!-- Filters Section -->
+    <div class="section">
+      <h2>🔍 Filters</h2>
+      <div class="filters">
+        <div class="filter-group">
+          <label for="filter-status">Status:</label>
+          <select id="filter-status">
+            <option value="">All</option>
+            <option value="unread">Unread</option>
+            <option value="read">Read</option>
+            <option value="archived">Archived</option>
+          </select>
+        </div>
+        <div class="filter-group">
+          <label for="filter-category">Category:</label>
+          <select id="filter-category">
+            <option value="">All</option>
+            <option value="likes">Likes</option>
+            <option value="comments">Comments</option>
+            <option value="follows">Follows</option>
+            <option value="uploads">Uploads</option>
+            <option value="system">System</option>
+          </select>
+        </div>
+        <div class="filter-group">
+          <label for="filter-limit">Limit:</label>
+          <select id="filter-limit">
+            <option value="10">10</option>
+            <option value="20" selected>20</option>
+            <option value="50">50</option>
+          </select>
+        </div>
+        <button id="apply-filters" class="button">Apply Filters</button>
+        <button id="clear-filters" class="button secondary">Clear</button>
+      </div>
+    </div>
+
+    <!-- Statistics Section -->
+    <div class="section">
+      <h2>📊 Statistics</h2>
+      <div id="stats" class="stats-grid">
+        <!-- Stats will be populated dynamically -->
+      </div>
+      <button id="refresh-stats" class="button">Refresh Stats</button>
+    </div>
+
+    <!-- Notifications List -->
+    <div class="section">
+      <h2>📋 Notifications</h2>
+      <button id="load-notifications" class="button">Load Notifications</button>
+      <div id="notifications-list" class="notification-list">
+        <!-- Notifications will be populated dynamically -->
+      </div>
+      <div id="pagination" class="pagination" style="display: none;">
+        <!-- Pagination will be populated dynamically -->
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    class NotificationsDemo {
+      constructor() {
+        this.notifications = [];
+        this.selectedIds = new Set();
+        this.currentPage = 1;
+        this.filters = {
+          status: '',
+          category: '',
+          limit: 20
+        };
+
+        this.init();
+      }
+
+      init() {
+        this.setupEventListeners();
+        this.loadStats();
+        this.loadNotifications();
+      }
+
+      setupEventListeners() {
+        // Create notification form
+        document.getElementById('create-form').addEventListener('submit', (e) => {
+          e.preventDefault();
+          this.createNotification();
+        });
+
+        // Batch operations
+        document.getElementById('mark-read-batch').addEventListener('click', () => {
+          this.batchOperation('mark-read-batch');
+        });
+        document.getElementById('archive-batch').addEventListener('click', () => {
+          this.batchOperation('archive-batch');
+        });
+        document.getElementById('delete-batch').addEventListener('click', () => {
+          this.batchOperation('delete-batch');
+        });
+
+        // Filters
+        document.getElementById('apply-filters').addEventListener('click', () => {
+          this.applyFilters();
+        });
+        document.getElementById('clear-filters').addEventListener('click', () => {
+          this.clearFilters();
+        });
+
+        // Load buttons
+        document.getElementById('load-notifications').addEventListener('click', () => {
+          this.loadNotifications();
+        });
+        document.getElementById('refresh-stats').addEventListener('click', () => {
+          this.loadStats();
+        });
+      }
+
+      async createNotification() {
+        const type = document.getElementById('notif-type').value;
+        const title = document.getElementById('notif-title').value;
+        const content = document.getElementById('notif-content').value;
+
+        try {
+          this.showStatus('Creating notification...', 'info');
+
+          const response = await fetch('/api/notifications/send', {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${this.getAuthToken()}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              type,
+              title,
+              content,
+              data: { demo: true }
+            })
+          });
+
+          if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+          }
+
+          const data = await response.json();
+          this.showStatus('Notification created successfully!', 'success');
+          this.loadNotifications();
+          this.loadStats();
+
+          // Clear form
+          document.getElementById('create-form').reset();
+
+        } catch (error) {
+          console.error('Failed to create notification:', error);
+          this.showStatus(`Failed to create notification: ${error.message}`, 'error');
+        }
+      }
+
+      async loadNotifications(page = 1) {
+        try {
+          this.showStatus('Loading notifications...', 'info');
+
+          const params = new URLSearchParams({
+            page: page.toString(),
+            limit: this.filters.limit.toString(),
+            ...Object.fromEntries(
+              Object.entries(this.filters).filter(([_, v]) => v !== '')
+            )
+          });
+
+          const response = await fetch(`/api/notifications?${params}`, {
+            headers: {
+              'Authorization': `Bearer ${this.getAuthToken()}`
+            }
+          });
+
+          if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+          }
+
+          const data = await response.json();
+          this.notifications = data.data;
+          this.currentPage = page;
+          this.renderNotifications(data.data);
+          this.renderPagination(data.pagination);
+
+          this.showStatus('Notifications loaded successfully!', 'success');
+
+        } catch (error) {
+          console.error('Failed to load notifications:', error);
+          this.showStatus(`Failed to load notifications: ${error.message}`, 'error');
+        }
+      }
+
+      async loadStats() {
+        try {
+          const response = await fetch('/api/notifications/stats', {
+            headers: {
+              'Authorization': `Bearer ${this.getAuthToken()}`
+            }
+          });
+
+          if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+          }
+
+          const data = await response.json();
+          this.renderStats(data.data.stats);
+
+        } catch (error) {
+          console.error('Failed to load stats:', error);
+        }
+      }
+
+      renderNotifications(notifications) {
+        const container = document.getElementById('notifications-list');
+        const checkboxesContainer = document.getElementById('batch-checkboxes');
+
+        if (notifications.length === 0) {
+          container.innerHTML = '<p>No notifications found.</p>';
+          checkboxesContainer.innerHTML = '';
+          return;
+        }
+
+        container.innerHTML = notifications.map(notification => `
+          <div class="notification-item ${notification.status}" data-id="${notification.id}">
+            <div class="notification-header">
+              <h3 class="notification-title">${this.escapeHtml(notification.title)}</h3>
+              <input type="checkbox" class="batch-checkbox" value="${notification.id}">
+            </div>
+            <div class="notification-meta">
+              Type: ${notification.type} | Category: ${notification.category} |
+              Status: ${notification.status} |
+              Created: ${new Date(notification.createdAt).toLocaleString()}
+              ${notification.readAt ? `| Read: ${new Date(notification.readAt).toLocaleString()}` : ''}
+            </div>
+            <div class="notification-content">${this.escapeHtml(notification.content)}</div>
+            <div class="notification-actions">
+              ${notification.status === 'unread' ?
+                `<button class="button action-btn" onclick="demo.markAsRead('${notification.id}')">Mark Read</button>` : ''}
+              ${notification.status !== 'archived' && notification.status !== 'deleted' ?
+                `<button class="button secondary action-btn" onclick="demo.archiveNotification('${notification.id}')">Archive</button>` : ''}
+              ${notification.status !== 'deleted' ?
+                `<button class="button danger action-btn" onclick="demo.deleteNotification('${notification.id}')">Delete</button>` : ''}
+            </div>
+          </div>
+        `).join('');
+
+        // Render checkboxes for batch operations
+        checkboxesContainer.innerHTML = notifications.map(notification => `
+          <label class="checkbox-item">
+            <input type="checkbox" class="batch-select" value="${notification.id}">
+            ${this.escapeHtml(notification.title.substring(0, 30))}...
+          </label>
+        `).join('');
+
+        // Add event listeners for checkboxes
+        document.querySelectorAll('.batch-checkbox, .batch-select').forEach(checkbox => {
+          checkbox.addEventListener('change', () => {
+            this.updateSelectedIds();
+          });
+        });
+      }
+
+      renderPagination(pagination) {
+        const container = document.getElementById('pagination');
+
+        if (!pagination || pagination.totalPages <= 1) {
+          container.style.display = 'none';
+          return;
+        }
+
+        container.innerHTML = `
+          <button ${pagination.hasPrev ? '' : 'disabled'} onclick="demo.loadNotifications(${this.currentPage - 1})">Previous</button>
+          <span>Page ${pagination.page} of ${pagination.totalPages}</span>
+          <button ${pagination.hasNext ? '' : 'disabled'} onclick="demo.loadNotifications(${this.currentPage + 1})">Next</button>
+        `;
+
+        container.style.display = 'flex';
+      }
+
+      renderStats(stats) {
+        const container = document.getElementById('stats');
+        container.innerHTML = `
+          <div class="stat-card">
+            <div class="stat-number">${stats.total}</div>
+            <div class="stat-label">Total</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-number">${stats.unread}</div>
+            <div class="stat-label">Unread</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-number">${stats.read}</div>
+            <div class="stat-label">Read</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-number">${stats.archived}</div>
+            <div class="stat-label">Archived</div>
+          </div>
+        `;
+      }
+
+      async markAsRead(notificationId) {
+        try {
+          const response = await fetch(`/api/notifications/${notificationId}/read`, {
+            method: 'PUT',
+            headers: {
+              'Authorization': `Bearer ${this.getAuthToken()}`
+            }
+          });
+
+          if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+          }
+
+          this.showStatus('Notification marked as read!', 'success');
+          this.loadNotifications(this.currentPage);
+          this.loadStats();
+
+        } catch (error) {
+          console.error('Failed to mark as read:', error);
+          this.showStatus(`Failed to mark as read: ${error.message}`, 'error');
+        }
+      }
+
+      async archiveNotification(notificationId) {
+        try {
+          const response = await fetch(`/api/notifications/${notificationId}/archive`, {
+            method: 'PUT',
+            headers: {
+              'Authorization': `Bearer ${this.getAuthToken()}`
+            }
+          });
+
+          if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+          }
+
+          this.showStatus('Notification archived!', 'success');
+          this.loadNotifications(this.currentPage);
+          this.loadStats();
+
+        } catch (error) {
+          console.error('Failed to archive notification:', error);
+          this.showStatus(`Failed to archive: ${error.message}`, 'error');
+        }
+      }
+
+      async deleteNotification(notificationId) {
+        try {
+          const response = await fetch(`/api/notifications/${notificationId}`, {
+            method: 'DELETE',
+            headers: {
+              'Authorization': `Bearer ${this.getAuthToken()}`
+            }
+          });
+
+          if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+          }
+
+          this.showStatus('Notification deleted!', 'success');
+          this.loadNotifications(this.currentPage);
+          this.loadStats();
+
+        } catch (error) {
+          console.error('Failed to delete notification:', error);
+          this.showStatus(`Failed to delete: ${error.message}`, 'error');
+        }
+      }
+
+      async batchOperation(operation) {
+        const selectedIds = Array.from(this.selectedIds);
+        if (selectedIds.length === 0) {
+          this.showStatus('Please select notifications first', 'error');
+          return;
+        }
+
+        try {
+          this.showStatus(`Performing ${operation} on ${selectedIds.length} notifications...`, 'info');
+
+          let endpoint, method;
+          switch (operation) {
+            case 'mark-read-batch':
+              endpoint = '/api/notifications/mark-read-batch';
+              method = 'PUT';
+              break;
+            case 'archive-batch':
+              endpoint = '/api/notifications/archive-batch';
+              method = 'PUT';
+              break;
+            case 'delete-batch':
+              endpoint = '/api/notifications/delete-batch';
+              method = 'DELETE';
+              break;
+            default:
+              throw new Error('Unknown operation');
+          }
+
+          const response = await fetch(endpoint, {
+            method,
+            headers: {
+              'Authorization': `Bearer ${this.getAuthToken()}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ notificationIds: selectedIds })
+          });
+
+          if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+          }
+
+          const data = await response.json();
+          this.showStatus(`${operation} completed! ${data.data.count} notifications affected.`, 'success');
+
+          this.loadNotifications(this.currentPage);
+          this.loadStats();
+          this.selectedIds.clear();
+          this.updateSelectedIds();
+
+        } catch (error) {
+          console.error(`Failed to perform ${operation}:`, error);
+          this.showStatus(`Failed to perform ${operation}: ${error.message}`, 'error');
+        }
+      }
+
+      applyFilters() {
+        this.filters.status = document.getElementById('filter-status').value;
+        this.filters.category = document.getElementById('filter-category').value;
+        this.filters.limit = parseInt(document.getElementById('filter-limit').value);
+        this.loadNotifications(1);
+      }
+
+      clearFilters() {
+        this.filters = { status: '', category: '', limit: 20 };
+        document.getElementById('filter-status').value = '';
+        document.getElementById('filter-category').value = '';
+        document.getElementById('filter-limit').value = '20';
+        this.loadNotifications(1);
+      }
+
+      updateSelectedIds() {
+        this.selectedIds.clear();
+        document.querySelectorAll('.batch-select:checked, .batch-checkbox:checked').forEach(checkbox => {
+          this.selectedIds.add(checkbox.value);
+        });
+      }
+
+      getAuthToken() {
+        return localStorage.getItem('authToken') ||
+               sessionStorage.getItem('authToken') ||
+               '';
+      }
+
+      escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+      }
+
+      showStatus(message, type = 'info') {
+        const statusDiv = document.getElementById('status');
+        statusDiv.textContent = message;
+        statusDiv.className = `status ${type}`;
+      }
+    }
+
+    // Make demo instance globally available for button onclick handlers
+    window.demo = new NotificationsDemo();
+  </script>
+</body>
+</html>

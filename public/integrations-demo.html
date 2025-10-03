@@ -1,0 +1,949 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Mediaverse Integrations Demo">
+  <title>Integrations Demo - Mediaverse</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 20px;
+      background: #f8f9fa;
+      color: #333;
+      line-height: 1.6;
+    }
+    .container {
+      background: white;
+      border-radius: 12px;
+      padding: 30px;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    }
+    h1 {
+      color: #667eea;
+      margin-bottom: 30px;
+      text-align: center;
+    }
+    .section {
+      margin: 40px 0;
+      padding: 25px;
+      background: #f8f9fa;
+      border-radius: 10px;
+      border-left: 5px solid #667eea;
+    }
+    .section h2 {
+      margin-top: 0;
+      color: #667eea;
+      font-size: 24px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .section h3 {
+      color: #495057;
+      font-size: 18px;
+      margin-top: 20px;
+      margin-bottom: 10px;
+    }
+    .status {
+      padding: 15px;
+      border-radius: 8px;
+      margin: 20px 0;
+      font-weight: 500;
+    }
+    .status.success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+    .status.error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+    .status.info { background: #cce7ff; color: #004085; border: 1px solid #b3d7ff; }
+    .status.warning { background: #fff3cd; color: #856404; border: 1px solid #ffeaa7; }
+    .button {
+      background: #667eea;
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 16px;
+      margin: 10px 5px;
+      transition: background 0.3s;
+    }
+    .button:hover { background: #5a6fd8; }
+    .button.secondary { background: #6c757d; }
+    .button.secondary:hover { background: #545b62; }
+    .button.danger { background: #dc3545; }
+    .button.danger:hover { background: #c82333; }
+    .button.success { background: #28a745; }
+    .button.success:hover { background: #218838; }
+    .button:disabled {
+      background: #cccccc;
+      cursor: not-allowed;
+    }
+    .form-group {
+      margin: 15px 0;
+    }
+    .form-group label {
+      display: block;
+      margin-bottom: 5px;
+      font-weight: 600;
+    }
+    .form-group input, .form-group select, .form-group textarea {
+      width: 100%;
+      padding: 10px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      font-size: 14px;
+    }
+    .form-group textarea { resize: vertical; min-height: 80px; }
+    .form-row {
+      display: flex;
+      gap: 15px;
+      margin: 15px 0;
+    }
+    .form-row .form-group {
+      flex: 1;
+    }
+    .result {
+      background: #f8f9fa;
+      border: 1px solid #dee2e6;
+      border-radius: 8px;
+      padding: 15px;
+      margin: 15px 0;
+      font-family: 'Courier New', monospace;
+      font-size: 14px;
+      white-space: pre-wrap;
+      max-height: 300px;
+      overflow-y: auto;
+    }
+    .integration-card {
+      background: white;
+      border: 1px solid #e9ecef;
+      border-radius: 8px;
+      padding: 20px;
+      margin: 15px 0;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    .integration-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 15px;
+    }
+    .integration-title {
+      font-weight: 600;
+      color: #495057;
+    }
+    .integration-status {
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 12px;
+      font-weight: 500;
+    }
+    .status-connected { background: #d4edda; color: #155724; }
+    .status-pending { background: #fff3cd; color: #856404; }
+    .status-error { background: #f8d7da; color: #721c24; }
+    .action-buttons {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 15px;
+      margin: 20px 0;
+    }
+    .stat-card {
+      background: white;
+      padding: 20px;
+      border-radius: 8px;
+      text-align: center;
+      border: 1px solid #e9ecef;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    .stat-number {
+      font-size: 28px;
+      font-weight: bold;
+      color: #667eea;
+      margin-bottom: 8px;
+    }
+    .stat-label {
+      font-size: 14px;
+      color: #666;
+      margin: 0;
+    }
+    .notification-item {
+      background: white;
+      border: 1px solid #e9ecef;
+      border-radius: 8px;
+      padding: 15px;
+      margin: 10px 0;
+      position: relative;
+    }
+    .notification-item.unread {
+      border-left: 4px solid #667eea;
+      background: #f8f9ff;
+    }
+    .notification-item.read {
+      border-left: 4px solid #28a745;
+      background: #f8fff9;
+    }
+    .notification-item.archived {
+      border-left: 4px solid #ffc107;
+      background: #fffef8;
+    }
+    .notification-meta {
+      font-size: 12px;
+      color: #666;
+      margin: 5px 0;
+    }
+    .notification-content {
+      margin: 10px 0;
+      font-weight: 500;
+    }
+    .code-example {
+      background: #f8f9fa;
+      border: 1px solid #dee2e6;
+      border-radius: 4px;
+      padding: 10px;
+      font-family: 'Courier New', monospace;
+      font-size: 13px;
+      margin: 10px 0;
+      overflow-x: auto;
+    }
+    .tabs {
+      display: flex;
+      border-bottom: 1px solid #dee2e6;
+      margin: 20px 0;
+    }
+    .tab {
+      padding: 10px 20px;
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      transition: all 0.3s;
+    }
+    .tab.active {
+      border-bottom-color: #667eea;
+      color: #667eea;
+      font-weight: 600;
+    }
+    .tab-content {
+      display: none;
+    }
+    .tab-content.active {
+      display: block;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🔗 Mediaverse Module Integrations Demo</h1>
+
+    <div id="status" class="status info">
+      Testing module integrations... 🔄
+    </div>
+
+    <!-- Overview Stats -->
+    <div class="stats-grid" id="overview-stats">
+      <div class="stat-card">
+        <div class="stat-number" id="auth-status">⏳</div>
+        <div class="stat-label">Auth Module</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-number" id="content-status">⏳</div>
+        <div class="stat-label">Content Module</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-number" id="notifications-status">⏳</div>
+        <div class="stat-label">Notifications</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-number" id="recommendations-status">⏳</div>
+        <div class="stat-label">Recommendations</div>
+      </div>
+    </div>
+
+    <!-- Integration Tests -->
+    <div class="section">
+      <h2>🧪 Integration Tests</h2>
+
+      <div class="tabs">
+        <div class="tab active" onclick="showTab('auth-integration')">Auth + WebSocket</div>
+        <div class="tab" onclick="showTab('content-notifications')">Content + Notifications</div>
+        <div class="tab" onclick="showTab('preferences-users')">Preferences + Users</div>
+        <div class="tab" onclick="showTab('recommendations-digest')">Recommendations + Digest</div>
+      </div>
+
+      <!-- Auth + WebSocket Integration -->
+      <div id="auth-integration" class="tab-content active">
+        <h3>🔐 Auth Module + WebSocket Authentication</h3>
+        <p>JWT tokens from Auth module are used to authenticate WebSocket connections</p>
+
+        <div class="integration-card">
+          <div class="integration-header">
+            <div class="integration-title">WebSocket Connection Status</div>
+            <div class="integration-status status-pending" id="ws-status">Disconnected</div>
+          </div>
+          <div class="action-buttons">
+            <button class="button" onclick="testWebSocketConnection()">Test WebSocket Connection</button>
+            <button class="button secondary" onclick="sendWebSocketMessage()">Send Test Message</button>
+          </div>
+          <div id="ws-result" class="result" style="display: none;"></div>
+        </div>
+
+        <div class="code-example">
+// WebSocket authentication in webSocketManager.js
+setupMiddleware() {
+  this.io.use(async (socket, next) => {
+    const token = socket.handshake.auth?.token;
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    socket.userId = decoded.userId;
+    next();
+  });
+}
+        </div>
+      </div>
+
+      <!-- Content + Notifications Integration -->
+      <div id="content-notifications" class="tab-content">
+        <h3>📝 Content Module + Notification Triggers</h3>
+        <p>Content interactions automatically trigger notifications</p>
+
+        <div class="form-group">
+          <label>Test Notification Triggers:</label>
+          <div class="action-buttons">
+            <button class="button success" onclick="simulateLike()">Simulate Like</button>
+            <button class="button success" onclick="simulateComment()">Simulate Comment</button>
+            <button class="button success" onclick="simulateUpload()">Simulate Upload</button>
+          </div>
+        </div>
+
+        <div class="integration-card">
+          <div class="integration-header">
+            <div class="integration-title">Recent Notifications</div>
+            <button class="button secondary" onclick="loadRecentNotifications()">Refresh</button>
+          </div>
+          <div id="notifications-list" class="result">
+            <!-- Notifications will be loaded here -->
+          </div>
+        </div>
+
+        <div class="code-example">
+// Notification triggers in interactionController.js
+if (content.authorId !== userId) {
+  await NotificationService.createNotification(
+    content.authorId,
+    'like',
+    'Someone liked your content',
+    `${likerName} liked your content "${content.title}"`,
+    { contentId, likerId: userId, contentType: 'video' }
+  );
+}
+        </div>
+      </div>
+
+      <!-- Preferences + Users Integration -->
+      <div id="preferences-users" class="tab-content">
+        <h3>⚙️ User Preferences Integration</h3>
+        <p>Notification preferences stored in User Profile model</p>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label>Notification Category:</label>
+            <select id="pref-category">
+              <option value="likes">Likes</option>
+              <option value="comments">Comments</option>
+              <option value="follows">Follows</option>
+              <option value="uploads">Uploads</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Channel:</label>
+            <select id="pref-channel">
+              <option value="email">Email</option>
+              <option value="push">Push</option>
+              <option value="in-app">In-App</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="action-buttons">
+          <button class="button" onclick="checkNotificationAllowed()">Check if Allowed</button>
+          <button class="button secondary" onclick="getUserPreferences()">Get Preferences</button>
+          <button class="button success" onclick="updatePreferences()">Update Preferences</button>
+        </div>
+
+        <div id="preferences-result" class="result" style="display: none;"></div>
+
+        <div class="code-example">
+// Preferences stored in Profile model
+model Profile {
+  preferences Json @default("{}")  // Notification preferences
+  // ... other fields
+}
+
+// Access in preferencesService.js
+async getUserPreferences(userId) {
+  const profile = await prisma.profile.findUnique({
+    where: { userId },
+    select: { preferences: true }
+  });
+  return { ...defaultPreferences, ...profile.preferences };
+}
+        </div>
+      </div>
+
+      <!-- Recommendations + Digest Integration -->
+      <div id="recommendations-digest" class="tab-content">
+        <h3>📊 Recommendations + Weekly Digest</h3>
+        <p>Weekly digest emails based on personalized recommendations</p>
+
+        <div class="action-buttons">
+          <button class="button" onclick="generateWeeklyDigest()">Generate Digest Data</button>
+          <button class="button success" onclick="sendWeeklyDigest()">Send Digest Email</button>
+          <button class="button secondary" onclick="getPersonalizedFeed()">Get Recommendations</button>
+        </div>
+
+        <div id="digest-result" class="result" style="display: none;"></div>
+
+        <div class="integration-card">
+          <div class="integration-header">
+            <div class="integration-title">Weekly Digest Preview</div>
+          </div>
+          <div id="digest-preview" class="result" style="display: none;">
+            <!-- Digest data will be displayed here -->
+          </div>
+        </div>
+
+        <div class="code-example">
+// Weekly digest generation in recommendationService.js
+async generateWeeklyDigest(userId, days = 7) {
+  const [totalViews, totalLikes, topContent, recommendedContent] =
+    await Promise.all([
+      prisma.content.aggregate({
+        where: { authorId: userId, createdAt: { gte: startDate } },
+        _sum: { viewCount: true }
+      }),
+      // ... other stats
+      this.getPersonalizedFeed(userId, { limit: 3 }) // Recommendations
+    ]);
+
+  return {
+    stats: { views: totalViews._sum.viewCount || 0, likes: totalLikes },
+    topContent: topContent,
+    recommendations: recommendedContent
+  };
+}
+        </div>
+      </div>
+    </div>
+
+    <!-- API Endpoints Summary -->
+    <div class="section">
+      <h2>📋 Integration API Endpoints</h2>
+
+      <div class="integration-card">
+        <h3>🔐 Auth + WebSocket</h3>
+        <ul>
+          <li><code>WebSocket: /socket.io/</code> - JWT authenticated connections</li>
+          <li><code>POST /api/auth/login</code> - Get JWT token for WebSocket auth</li>
+        </ul>
+      </div>
+
+      <div class="integration-card">
+        <h3>📝 Content + Notifications</h3>
+        <ul>
+          <li><code>POST /api/content/videos</code> - Triggers upload notifications</li>
+          <li><code>POST /api/content/{id}/like</code> - Triggers like notifications</li>
+          <li><code>POST /api/content/{id}/comments</code> - Triggers comment notifications</li>
+        </ul>
+      </div>
+
+      <div class="integration-card">
+        <h3>⚙️ User Preferences</h3>
+        <ul>
+          <li><code>GET /api/notifications/preferences</code> - Get user notification preferences</li>
+          <li><code>PUT /api/notifications/preferences</code> - Update preferences</li>
+          <li><code>GET /api/notifications/preferences/check</code> - Check if notification allowed</li>
+        </ul>
+      </div>
+
+      <div class="integration-card">
+        <h3>📊 Recommendations + Digest</h3>
+        <ul>
+          <li><code>GET /api/recommendations/digest/generate</code> - Generate weekly digest data</li>
+          <li><code>POST /api/recommendations/digest/send</code> - Send digest email</li>
+          <li><code>GET /api/recommendations/feed</code> - Get personalized feed for digest</li>
+        </ul>
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    class IntegrationsDemo {
+      constructor() {
+        this.wsConnection = null;
+        this.authToken = this.getAuthToken();
+        this.init();
+      }
+
+      init() {
+        this.updateStatus('Ready to test integrations!', 'success');
+        this.checkModuleStatuses();
+      }
+
+      updateStatus(message, type = 'info') {
+        const statusDiv = document.getElementById('status');
+        statusDiv.textContent = message;
+        statusDiv.className = `status ${type}`;
+      }
+
+      checkModuleStatuses() {
+        // Simulate checking module statuses
+        setTimeout(() => {
+          document.getElementById('auth-status').textContent = '✅ Connected';
+          document.getElementById('content-status').textContent = '✅ Active';
+          document.getElementById('notifications-status').textContent = '✅ Working';
+          document.getElementById('recommendations-status').textContent = '✅ Ready';
+        }, 1000);
+      }
+
+      async testWebSocketConnection() {
+        try {
+          this.updateStatus('Testing WebSocket connection...', 'info');
+
+          if (this.wsConnection) {
+            this.wsConnection.disconnect();
+          }
+
+          // Connect to WebSocket with JWT token
+          this.wsConnection = io({
+            auth: {
+              token: this.authToken
+            }
+          });
+
+          this.wsConnection.on('connect', () => {
+            document.getElementById('ws-status').textContent = 'Connected';
+            document.getElementById('ws-status').className = 'integration-status status-connected';
+            this.showResult('ws-result', '✅ WebSocket connected successfully with JWT authentication!');
+            this.updateStatus('WebSocket connection successful!', 'success');
+          });
+
+          this.wsConnection.on('connect_error', (error) => {
+            document.getElementById('ws-status').textContent = 'Failed';
+            document.getElementById('ws-status').className = 'integration-status status-error';
+            this.showResult('ws-result', `❌ WebSocket connection failed: ${error.message}`);
+            this.updateStatus('WebSocket connection failed!', 'error');
+          });
+
+          this.wsConnection.on('notification:new', (notification) => {
+            this.showResult('ws-result', `📬 New notification received: ${notification.title}`);
+          });
+
+        } catch (error) {
+          console.error('WebSocket test failed:', error);
+          this.updateStatus(`WebSocket test failed: ${error.message}`, 'error');
+        }
+      }
+
+      async sendWebSocketMessage() {
+        if (!this.wsConnection || !this.wsConnection.connected) {
+          this.updateStatus('WebSocket not connected!', 'error');
+          return;
+        }
+
+        try {
+          this.wsConnection.emit('notification:mark_read', 'test-notification-id');
+          this.showResult('ws-result', '📤 Sent test WebSocket message');
+          this.updateStatus('WebSocket message sent!', 'success');
+        } catch (error) {
+          this.updateStatus(`Failed to send WebSocket message: ${error.message}`, 'error');
+        }
+      }
+
+      async simulateLike() {
+        try {
+          this.updateStatus('Simulating like action...', 'info');
+
+          const response = await fetch('/api/content/videos/01998458-5971-7642-a642-3f396b87dce6/like', {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${this.authToken}`,
+              'Content-Type': 'application/json'
+            }
+          });
+
+          if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+          }
+
+          const data = await response.json();
+          this.showResult('notifications-list', `👍 Like simulated successfully!\n${JSON.stringify(data, null, 2)}`);
+          this.updateStatus('Like simulation successful!', 'success');
+
+          // Refresh notifications
+          setTimeout(() => this.loadRecentNotifications(), 1000);
+
+        } catch (error) {
+          console.error('Like simulation failed:', error);
+          this.updateStatus(`Like simulation failed: ${error.message}`, 'error');
+        }
+      }
+
+      async simulateComment() {
+        try {
+          this.updateStatus('Simulating comment action...', 'info');
+
+          const response = await fetch('/api/content/videos/01998458-5971-7642-a642-3f396b87dce6/comments', {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${this.authToken}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              text: 'This is a test comment from integration demo! 🚀'
+            })
+          });
+
+          if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+          }
+
+          const data = await response.json();
+          this.showResult('notifications-list', `💬 Comment simulated successfully!\n${JSON.stringify(data, null, 2)}`);
+          this.updateStatus('Comment simulation successful!', 'success');
+
+          // Refresh notifications
+          setTimeout(() => this.loadRecentNotifications(), 1000);
+
+        } catch (error) {
+          console.error('Comment simulation failed:', error);
+          this.updateStatus(`Comment simulation failed: ${error.message}`, 'error');
+        }
+      }
+
+      async simulateUpload() {
+        try {
+          this.updateStatus('Simulating upload notification...', 'info');
+
+          // Create a test notification manually since we can't actually upload
+          const response = await fetch('/api/notifications/send', {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${this.authToken}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              type: 'upload',
+              title: 'Test Video Uploaded',
+              content: 'Demo User uploaded a new video: "Integration Test Video"',
+              data: {
+                videoId: 'test-video-id',
+                videoTitle: 'Integration Test Video',
+                uploaderId: 'test-user-id',
+                contentType: 'video'
+              }
+            })
+          });
+
+          if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+          }
+
+          const data = await response.json();
+          this.showResult('notifications-list', `📹 Upload notification simulated!\n${JSON.stringify(data, null, 2)}`);
+          this.updateStatus('Upload notification simulation successful!', 'success');
+
+          // Refresh notifications
+          setTimeout(() => this.loadRecentNotifications(), 1000);
+
+        } catch (error) {
+          console.error('Upload simulation failed:', error);
+          this.updateStatus(`Upload simulation failed: ${error.message}`, 'error');
+        }
+      }
+
+      async loadRecentNotifications() {
+        try {
+          const response = await fetch('/api/notifications?page=1&limit=5', {
+            headers: {
+              'Authorization': `Bearer ${this.authToken}`
+            }
+          });
+
+          if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+          }
+
+          const data = await response.json();
+          const notifications = data.data || [];
+
+          const html = notifications.length > 0 ?
+            notifications.map(notification => `
+              <div class="notification-item ${notification.status}">
+                <div class="notification-meta">
+                  ${notification.type} • ${notification.category} • ${notification.status} •
+                  ${new Date(notification.createdAt).toLocaleString()}
+                </div>
+                <div class="notification-content">${this.escapeHtml(notification.title)}</div>
+                <div>${this.escapeHtml(notification.content)}</div>
+              </div>
+            `).join('') :
+            '<p>No recent notifications</p>';
+
+          document.getElementById('notifications-list').innerHTML = html;
+
+        } catch (error) {
+          console.error('Failed to load notifications:', error);
+          document.getElementById('notifications-list').innerHTML =
+            `<p>❌ Failed to load notifications: ${error.message}</p>`;
+        }
+      }
+
+      async checkNotificationAllowed() {
+        const category = document.getElementById('pref-category').value;
+        const type = 'email'; // Using email as channel type for simplicity
+
+        try {
+          this.updateStatus('Checking notification permissions...', 'info');
+
+          const response = await fetch(`/api/notifications/preferences/check?category=${category}&type=${type}`, {
+            headers: {
+              'Authorization': `Bearer ${this.authToken}`
+            }
+          });
+
+          if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+          }
+
+          const data = await response.json();
+          this.showResult('preferences-result', `🔍 Notification check result:\n${JSON.stringify(data, null, 2)}`);
+          this.updateStatus('Notification permissions checked!', 'success');
+
+        } catch (error) {
+          console.error('Notification check failed:', error);
+          this.updateStatus(`Notification check failed: ${error.message}`, 'error');
+        }
+      }
+
+      async getUserPreferences() {
+        try {
+          this.updateStatus('Loading user preferences...', 'info');
+
+          const response = await fetch('/api/notifications/preferences', {
+            headers: {
+              'Authorization': `Bearer ${this.authToken}`
+            }
+          });
+
+          if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+          }
+
+          const data = await response.json();
+          this.showResult('preferences-result', `⚙️ User preferences:\n${JSON.stringify(data, null, 2)}`);
+          this.updateStatus('User preferences loaded!', 'success');
+
+        } catch (error) {
+          console.error('Failed to load preferences:', error);
+          this.updateStatus(`Failed to load preferences: ${error.message}`, 'error');
+        }
+      }
+
+      async updatePreferences() {
+        const category = document.getElementById('pref-category').value;
+        const channel = document.getElementById('pref-channel').value;
+
+        try {
+          this.updateStatus('Updating preferences...', 'info');
+
+          // Get current preferences first
+          const currentResponse = await fetch('/api/notifications/preferences', {
+            headers: {
+              'Authorization': `Bearer ${this.authToken}`
+            }
+          });
+
+          if (!currentResponse.ok) {
+            throw new Error(`HTTP ${currentResponse.status}: ${currentResponse.statusText}`);
+          }
+
+          const currentPrefs = await currentResponse.json();
+
+          // Update specific preference
+          const updatedPrefs = { ...currentPrefs };
+          if (!updatedPrefs.notifications) updatedPrefs.notifications = {};
+          if (!updatedPrefs.notifications[category]) updatedPrefs.notifications[category] = {};
+          updatedPrefs.notifications[category][channel] = true;
+
+          const updateResponse = await fetch('/api/notifications/preferences', {
+            method: 'PUT',
+            headers: {
+              'Authorization': `Bearer ${this.authToken}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(updatedPrefs)
+          });
+
+          if (!updateResponse.ok) {
+            throw new Error(`HTTP ${updateResponse.status}: ${updateResponse.statusText}`);
+          }
+
+          const data = await updateResponse.json();
+          this.showResult('preferences-result', `✅ Preferences updated:\n${JSON.stringify(data, null, 2)}`);
+          this.updateStatus('Preferences updated successfully!', 'success');
+
+        } catch (error) {
+          console.error('Failed to update preferences:', error);
+          this.updateStatus(`Failed to update preferences: ${error.message}`, 'error');
+        }
+      }
+
+      async generateWeeklyDigest() {
+        try {
+          this.updateStatus('Generating weekly digest...', 'info');
+
+          const response = await fetch('/api/recommendations/digest/generate', {
+            headers: {
+              'Authorization': `Bearer ${this.authToken}`
+            }
+          });
+
+          if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+          }
+
+          const data = await response.json();
+          const digest = data.data;
+
+          // Display digest preview
+          const preview = `
+📊 Weekly Digest Preview:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+👤 User: ${digest.userName}
+📅 Period: ${digest.period.startDate} to ${digest.period.endDate}
+
+📈 Statistics:
+• Views: ${digest.stats.views}
+• Likes: ${digest.stats.likes}
+• Comments: ${digest.stats.comments}
+• New Followers: ${digest.stats.followers}
+
+🏆 Top Content:
+${digest.topContent.map(content =>
+  `• ${content.title} (${content.type}): ${content.views} views, ${content.likes} likes`
+).join('\n')}
+
+💡 Recommendations:
+${digest.recommendations.map(rec =>
+  `• ${rec.title} (${rec.type}) by ${rec.authorName}`
+).join('\n')}
+          `;
+
+          document.getElementById('digest-preview').textContent = preview;
+          document.getElementById('digest-preview').style.display = 'block';
+
+          this.showResult('digest-result', `📊 Digest generated successfully!\n${JSON.stringify(digest, null, 2)}`);
+          this.updateStatus('Weekly digest generated!', 'success');
+
+        } catch (error) {
+          console.error('Failed to generate digest:', error);
+          this.updateStatus(`Failed to generate digest: ${error.message}`, 'error');
+        }
+      }
+
+      async sendWeeklyDigest() {
+        try {
+          this.updateStatus('Sending weekly digest email...', 'info');
+
+          const response = await fetch('/api/recommendations/digest/send', {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${this.authToken}`
+            }
+          });
+
+          if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+          }
+
+          const data = await response.json();
+          this.showResult('digest-result', `📧 Digest email sent!\n${JSON.stringify(data, null, 2)}`);
+          this.updateStatus('Weekly digest email sent!', 'success');
+
+        } catch (error) {
+          console.error('Failed to send digest:', error);
+          this.updateStatus(`Failed to send digest: ${error.message}`, 'error');
+        }
+      }
+
+      async getPersonalizedFeed() {
+        try {
+          this.updateStatus('Loading personalized recommendations...', 'info');
+
+          const response = await fetch('/api/recommendations/feed?limit=5', {
+            headers: {
+              'Authorization': `Bearer ${this.authToken}`
+            }
+          });
+
+          if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+          }
+
+          const data = await response.json();
+          this.showResult('digest-result', `🎯 Personalized recommendations:\n${JSON.stringify(data, null, 2)}`);
+          this.updateStatus('Recommendations loaded!', 'success');
+
+        } catch (error) {
+          console.error('Failed to load recommendations:', error);
+          this.updateStatus(`Failed to load recommendations: ${error.message}`, 'error');
+        }
+      }
+
+      getAuthToken() {
+        return localStorage.getItem('authToken') ||
+               sessionStorage.getItem('authToken') ||
+               '';
+      }
+
+      showResult(elementId, content) {
+        const element = document.getElementById(elementId);
+        element.textContent = content;
+        element.style.display = 'block';
+      }
+
+      escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+      }
+    }
+
+    function showTab(tabName) {
+      // Hide all tab contents
+      document.querySelectorAll('.tab-content').forEach(content => {
+        content.classList.remove('active');
+      });
+
+      // Remove active class from all tabs
+      document.querySelectorAll('.tab').forEach(tab => {
+        tab.classList.remove('active');
+      });
+
+      // Show selected tab content
+      document.getElementById(tabName).classList.add('active');
+
+      // Add active class to clicked tab
+      event.target.classList.add('active');
+    }
+
+    // Initialize demo when page loads
+    window.demo = new IntegrationsDemo();
+  </script>
+  <script src="/socket.io/socket.io.js"></script>
+</body>
+</html>
