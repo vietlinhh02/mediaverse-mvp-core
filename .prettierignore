@@ -1,0 +1,39 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+dist/
+build/
+
+# Logs
+logs/
+*.log
+
+# Environment files
+.env*
+
+# Database files
+*.db
+*.sqlite
+
+# Coverage reports
+coverage/
+
+# Temporary files
+temp/
+tmp/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor files
+.vscode/
+.idea/
+
+# Package files
+package-lock.json
+yarn.lock
+
+# Prisma generated files
+prisma/generated/
