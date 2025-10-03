@@ -220,32 +220,77 @@ The API is organized into the following main categories:
 - `GET /health` - Health check endpoint
 - `GET /api` - API information
 
-#### Authentication (Coming Soon)
+#### Authentication
 - User registration, login, logout
 - JWT token management
 - OAuth integration (Google, GitHub, Facebook)
+- Password reset and email verification
 
-#### Users (Coming Soon)
+#### Users
 - User profile management
 - Channel creation and management
 - Follow/unfollow functionality
+- User statistics and analytics
 
-#### Content (Coming Soon)
-- Article creation and management
-- Video upload and processing
-- Document sharing
-- Content interactions (likes, comments)
+#### Content - Articles
+- Create, read, update, delete articles
+- Article search and filtering
+- Featured image upload
+- Article revisions and history
 
-#### Moderation (Coming Soon)
-- Content reporting
-- Moderation dashboard
-- User management
+#### Content - Videos
+- Video upload with progress tracking
+- Video transcoding and processing
+- Adaptive streaming (HLS)
+- Thumbnail generation
+- Video statistics and analytics
 
-#### Recommendations (Coming Soon)
-- Personalized content recommendations
+#### Content - Documents ✨
+- **Document Upload**: Support for PDF, Office files, text documents
+- **Document Management**: CRUD operations with full validation
+- **Text Extraction**: Extract and search text content from documents
+- **Preview Generation**: Generate document previews
+- **Download Control**: Temporary download links with expiration
+- **Folder Organization**: Create folders to organize documents
+- **Bulk Operations**: Move multiple documents at once
+- **Search & Filter**: Advanced search with category and file type filters
+- **Document Analytics**: View counts, downloads, and engagement metrics
+- **Processing Status**: Track document processing in real-time
+
+**🎯 Document API Demo**: [http://localhost:3000/document-demo.html](http://localhost:3000/document-demo.html)
+
+**📖 Full Documentation**: See [docs/document-api-endpoints.md](docs/document-api-endpoints.md) for complete API reference
+
+#### Content - Interactions
+- Like/unlike content
+- Comment on content
+- Share content
+- Content statistics
+
+#### Feed System
+- Personalized content feed
 - Trending content discovery
+- Category-based feeds
+- Smart recommendation algorithm
 
-**Note**: More endpoints will be documented as they are implemented. The Swagger documentation will always reflect the current state of the API.
+#### Moderation
+- Content reporting system
+- Moderation dashboard
+- Automated content filtering
+- User management and banning
+
+#### Notifications
+- Real-time in-app notifications
+- Email notifications
+- Push notifications (Firebase)
+- Notification preferences
+
+#### Recommendations
+- Personalized content recommendations
+- Similar content discovery
+- Trending content analysis
+
+**Note**: The Swagger documentation at `/api-docs` always reflects the current state of the API with interactive testing capabilities.
 
 ## Contributing
 

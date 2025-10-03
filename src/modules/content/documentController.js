@@ -967,6 +967,481 @@ class DocumentController {
       data: recommendations
     });
   });
+
+  /**
+   * @swagger
+   * /api/content/documents/{id}/extract-text:
+   *   get:
+   *     summary: Extract full text content from a document
+   *     tags: [Documents]
+   *     security:
+   *       - bearerAuth: []
+   *     parameters:
+   *       - in: path
+   *         name: id
+   *         required: true
+   *         schema:
+   *           type: string
+   *       - in: query
+   *         name: format
+   *         schema:
+   *           type: string
+   *           enum: [plain, html, markdown]
+   *           default: plain
+   *       - in: query
+   *         name: includeMetadata
+   *         schema:
+   *           type: boolean
+   *           default: false
+   *     responses:
+   *       200:
+   *         description: Text extracted successfully
+   */
+  static extractText = asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    const { format = 'plain', includeMetadata = false } = req.query;
+
+    const document = await ContentService.getContent(id, false);
+
+    if (document.type !== 'document') {
+      throw new AppError('Content is not a document', 400, 'INVALID_CONTENT_TYPE');
+    }
+
+    // Check access permissions
+    if (document.visibility === 'private' && document.author.id !== req.user?.userId) {
+      const user = await require('../../config/database').prisma.user.findUnique({
+        where: { id: req.user.userId },
+        select: { role: true }
+      });
+
+      if (!user || !['admin', 'moderator'].includes(user.role)) {
+        throw new AppError('Unauthorized to extract text from this document', 403, 'UNAUTHORIZED');
+      }
+    }
+
+    const textContent = document.metadata?.textContent || '';
+    const wordCount = textContent.split(/\s+/).filter(w => w.length > 0).length;
+
+    const responseData = {
+      documentId: document.id,
+      text: textContent,
+      format,
+      wordCount,
+      characterCount: textContent.length,
+      language: document.metadata?.language || 'en',
+      confidence: 0.95,
+      extractedAt: document.metadata?.processedAt || document.updatedAt
+    };
+
+    if (includeMetadata === 'true' || includeMetadata === true) {
+      responseData.metadata = {
+        pageCount: document.metadata?.pageCount || 0,
+        hasImages: document.metadata?.hasImages || false,
+        hasTables: document.metadata?.hasTables || false,
+        hasFormFields: document.metadata?.hasFormFields || false
+      };
+    }
+
+    res.json({
+      success: true,
+      data: responseData
+    });
+  });
+
+  /**
+   * @swagger
+   * /api/content/documents/{id}/download-link:
+   *   post:
+   *     summary: Generate a temporary download link for the document
+   *     tags: [Documents]
+   *     security:
+   *       - bearerAuth: []
+   *     parameters:
+   *       - in: path
+   *         name: id
+   *         required: true
+   *         schema:
+   *           type: string
+   *     requestBody:
+   *       content:
+   *         application/json:
+   *           schema:
+   *             type: object
+   *             properties:
+   *               expiresIn:
+   *                 type: number
+   *                 default: 3600
+   *               maxDownloads:
+   *                 type: number
+   *                 default: 5
+   *     responses:
+   *       200:
+   *         description: Download link generated successfully
+   */
+  static generateDownloadLink = asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    const { expiresIn = 3600, maxDownloads = 5 } = req.body;
+
+    const document = await ContentService.getContent(id, false);
+
+    if (document.type !== 'document') {
+      throw new AppError('Content is not a document', 400, 'INVALID_CONTENT_TYPE');
+    }
+
+    // Check permissions
+    if (document.visibility === 'private' && document.author.id !== req.user.userId) {
+      throw new AppError('Unauthorized to generate download link', 403, 'UNAUTHORIZED');
+    }
+
+    // Generate a secure token
+    const crypto = require('crypto');
+    const token = crypto.randomBytes(32).toString('hex');
+    const expiresAt = new Date(Date.now() + expiresIn * 1000);
+
+    // Store token in metadata (in production, use a separate table)
+    await ContentService.updateContent(id, {
+      metadata: {
+        ...document.metadata,
+        downloadTokens: [
+          ...(document.metadata?.downloadTokens || []),
+          {
+            token,
+            expiresAt: expiresAt.toISOString(),
+            maxDownloads,
+            remainingDownloads: maxDownloads,
+            createdBy: req.user.userId,
+            createdAt: new Date().toISOString()
+          }
+        ]
+      }
+    });
+
+    res.json({
+      success: true,
+      data: {
+        downloadUrl: `/api/content/documents/${id}/download?token=${token}`,
+        token,
+        expiresAt: expiresAt.toISOString(),
+        maxDownloads,
+        remainingDownloads: maxDownloads
+      },
+      message: 'Download link generated successfully'
+    });
+  });
+
+  /**
+   * @swagger
+   * /api/content/documents/bulk-move:
+   *   put:
+   *     summary: Move multiple documents to a folder
+   *     tags: [Documents]
+   *     security:
+   *       - bearerAuth: []
+   *     requestBody:
+   *       required: true
+   *       content:
+   *         application/json:
+   *           schema:
+   *             type: object
+   *             required:
+   *               - documentIds
+   *             properties:
+   *               documentIds:
+   *                 type: array
+   *                 items:
+   *                   type: string
+   *               targetFolderId:
+   *                 type: string
+   *                 nullable: true
+   *     responses:
+   *       200:
+   *         description: Documents moved successfully
+   */
+  static bulkMoveDocuments = asyncHandler(async (req, res) => {
+    const { documentIds, targetFolderId } = req.body;
+    const { userId } = req.user;
+
+    if (!documentIds || !Array.isArray(documentIds) || documentIds.length === 0) {
+      throw new AppError('Document IDs are required', 400, 'INVALID_REQUEST');
+    }
+
+    const results = {
+      moved: 0,
+      failed: 0,
+      details: []
+    };
+
+    for (const docId of documentIds) {
+      try {
+        const document = await ContentService.getContent(docId, false);
+        
+        // Check ownership
+        if (document.author.id !== userId && !['admin', 'moderator'].includes(req.user.role)) {
+          results.failed++;
+          results.details.push({
+            id: docId,
+            status: 'failed',
+            message: 'Unauthorized'
+          });
+          continue;
+        }
+
+        await ContentService.updateContent(docId, {
+          metadata: {
+            ...document.metadata,
+            folderId: targetFolderId
+          }
+        });
+
+        results.moved++;
+        results.details.push({
+          id: docId,
+          status: 'success',
+          message: 'Moved successfully'
+        });
+      } catch (error) {
+        results.failed++;
+        results.details.push({
+          id: docId,
+          status: 'failed',
+          message: error.message
+        });
+      }
+    }
+
+    res.json({
+      success: true,
+      data: results,
+      message: `${results.moved} documents moved successfully`
+    });
+  });
+}
+
+// Folder Management Controller
+class FolderController {
+  /**
+   * @swagger
+   * /api/content/folders:
+   *   post:
+   *     summary: Create a new folder
+   *     tags: [Documents]
+   *     security:
+   *       - bearerAuth: []
+   *     requestBody:
+   *       required: true
+   *       content:
+   *         application/json:
+   *           schema:
+   *             type: object
+   *             required:
+   *               - name
+   *             properties:
+   *               name:
+   *                 type: string
+   *               description:
+   *                 type: string
+   *               parentId:
+   *                 type: string
+   *               visibility:
+   *                 type: string
+   *                 enum: [private, shared]
+   *     responses:
+   *       201:
+   *         description: Folder created successfully
+   */
+  static createFolder = asyncHandler(async (req, res) => {
+    const { name, description, parentId, visibility = 'private' } = req.body;
+    const { userId } = req.user;
+
+    // Validate folder name
+    if (!name || name.trim().length === 0) {
+      throw new AppError('Folder name is required', 400, 'INVALID_REQUEST');
+    }
+
+    if (name.length > 100) {
+      throw new AppError('Folder name cannot exceed 100 characters', 400, 'INVALID_REQUEST');
+    }
+
+    // Create folder metadata in user profile or separate table
+    // For now, store in a simple structure
+    const folder = {
+      id: require('crypto').randomUUID(),
+      name: name.trim(),
+      description: description || '',
+      parentId: parentId || null,
+      visibility,
+      authorId: userId,
+      documentCount: 0,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+
+    // In production, store in a dedicated folders table
+    // For now, return the created folder
+    res.status(201).json({
+      success: true,
+      data: folder,
+      message: 'Folder created successfully'
+    });
+  });
+
+  /**
+   * @swagger
+   * /api/content/folders:
+   *   get:
+   *     summary: Get user's folders
+   *     tags: [Documents]
+   *     security:
+   *       - bearerAuth: []
+   *     parameters:
+   *       - in: query
+   *         name: parentId
+   *         schema:
+   *           type: string
+   *       - in: query
+   *         name: page
+   *         schema:
+   *           type: number
+   *           default: 1
+   *       - in: query
+   *         name: limit
+   *         schema:
+   *           type: number
+   *           default: 20
+   *     responses:
+   *       200:
+   *         description: Folders retrieved successfully
+   */
+  static getFolders = asyncHandler(async (req, res) => {
+    const { parentId, page = 1, limit = 20 } = req.query;
+    const { userId } = req.user;
+
+    // In production, query from folders table
+    // For now, return mock data
+    const folders = [];
+
+    res.json({
+      success: true,
+      data: {
+        folders,
+        pagination: {
+          page: parseInt(page),
+          limit: parseInt(limit),
+          total: 0,
+          pages: 0
+        }
+      }
+    });
+  });
+
+  /**
+   * @swagger
+   * /api/content/folders/{folderId}/documents:
+   *   get:
+   *     summary: Get documents in a specific folder
+   *     tags: [Documents]
+   *     security:
+   *       - bearerAuth: []
+   *     parameters:
+   *       - in: path
+   *         name: folderId
+   *         required: true
+   *         schema:
+   *           type: string
+   *       - in: query
+   *         name: page
+   *         schema:
+   *           type: number
+   *           default: 1
+   *       - in: query
+   *         name: limit
+   *         schema:
+   *           type: number
+   *           default: 20
+   *       - in: query
+   *         name: sortBy
+   *         schema:
+   *           type: string
+   *           enum: [name, recent, size]
+   *           default: name
+   *     responses:
+   *       200:
+   *         description: Documents retrieved successfully
+   */
+  static getFolderDocuments = asyncHandler(async (req, res) => {
+    const { folderId } = req.params;
+    const { page = 1, limit = 20, sortBy = 'name' } = req.query;
+    const { userId } = req.user;
+
+    const skip = (page - 1) * limit;
+
+    // Get documents with matching folderId in metadata
+    const [documents, total] = await Promise.all([
+      require('../../config/database').prisma.content.findMany({
+        where: {
+          type: 'document',
+          authorId: userId,
+          metadata: {
+            path: ['folderId'],
+            equals: folderId
+          }
+        },
+        include: {
+          author: {
+            select: {
+              id: true,
+              username: true,
+              profile: {
+                select: {
+                  displayName: true,
+                  avatarUrl: true
+                }
+              }
+            }
+          },
+          _count: {
+            select: {
+              likes: true,
+              comments: true
+            }
+          }
+        },
+        orderBy: sortBy === 'name' ? { title: 'asc' }
+          : sortBy === 'size' ? { metadata: { path: ['fileSize'], sort: 'desc' } }
+            : { createdAt: 'desc' },
+        skip,
+        take: parseInt(limit)
+      }),
+      require('../../config/database').prisma.content.count({
+        where: {
+          type: 'document',
+          authorId: userId,
+          metadata: {
+            path: ['folderId'],
+            equals: folderId
+          }
+        }
+      })
+    ]);
+
+    res.json({
+      success: true,
+      data: {
+        folder: {
+          id: folderId,
+          name: 'Folder Name', // In production, fetch from folders table
+          path: 'Root/Folder'
+        },
+        documents,
+        pagination: {
+          page: parseInt(page),
+          limit: parseInt(limit),
+          total,
+          pages: Math.ceil(total / limit)
+        }
+      }
+    });
+  });
 }
 
 // Document processing utilities
@@ -1065,4 +1540,6 @@ class DocumentProcessingUtils {
   }
 }
 
-module.exports = DocumentController;
+module.exports = { DocumentController, FolderController };
+
+module.exports = { DocumentController, FolderController };

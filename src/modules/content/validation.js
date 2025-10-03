@@ -569,6 +569,121 @@ const categoryParamSchema = Joi.object({
   })
 });
 
+// Extract text validation schema
+const extractTextSchema = Joi.object({
+  format: Joi.string().valid('plain', 'html', 'markdown').default('plain')
+    .messages({
+      'any.only': 'Format must be one of: plain, html, markdown'
+    }),
+  includeMetadata: Joi.boolean().default(false)
+    .messages({
+      'boolean.base': 'includeMetadata must be a boolean'
+    })
+});
+
+// Generate download link validation schema
+const generateDownloadLinkSchema = Joi.object({
+  expiresIn: Joi.number().integer().min(60).max(86400).default(3600)
+    .messages({
+      'number.base': 'expiresIn must be a number',
+      'number.integer': 'expiresIn must be an integer',
+      'number.min': 'expiresIn must be at least 60 seconds',
+      'number.max': 'expiresIn cannot exceed 86400 seconds (24 hours)'
+    }),
+  maxDownloads: Joi.number().integer().min(1).max(100).default(5)
+    .messages({
+      'number.base': 'maxDownloads must be a number',
+      'number.integer': 'maxDownloads must be an integer',
+      'number.min': 'maxDownloads must be at least 1',
+      'number.max': 'maxDownloads cannot exceed 100'
+    }),
+  password: Joi.string().min(6).max(50).optional()
+    .messages({
+      'string.min': 'Password must be at least 6 characters',
+      'string.max': 'Password cannot exceed 50 characters'
+    })
+});
+
+// Bulk move documents validation schema
+const bulkMoveDocumentsSchema = Joi.object({
+  documentIds: Joi.array().items(Joi.string()).min(1).max(50).required()
+    .messages({
+      'array.base': 'documentIds must be an array',
+      'array.min': 'At least one document ID is required',
+      'array.max': 'Cannot move more than 50 documents at once',
+      'any.required': 'documentIds is required'
+    }),
+  targetFolderId: Joi.string().allow(null).optional()
+    .messages({
+      'string.base': 'targetFolderId must be a string'
+    })
+});
+
+// Folder creation validation schema
+const createFolderSchema = Joi.object({
+  name: Joi.string().min(1).max(100).trim().required()
+    .messages({
+      'string.empty': 'Folder name is required',
+      'string.min': 'Folder name must be at least 1 character',
+      'string.max': 'Folder name cannot exceed 100 characters',
+      'any.required': 'Folder name is required'
+    }),
+  description: Joi.string().max(500).allow('').trim()
+    .messages({
+      'string.max': 'Description cannot exceed 500 characters'
+    }),
+  parentId: Joi.string().allow(null).optional()
+    .messages({
+      'string.base': 'parentId must be a string'
+    }),
+  visibility: Joi.string().valid('private', 'shared').default('private')
+    .messages({
+      'any.only': 'Visibility must be either private or shared'
+    })
+});
+
+// Get folders validation schema
+const getFoldersSchema = Joi.object({
+  parentId: Joi.string().allow(null).optional()
+    .messages({
+      'string.base': 'parentId must be a string'
+    }),
+  page: Joi.number().integer().min(1).default(1)
+    .messages({
+      'number.base': 'Page must be a number',
+      'number.integer': 'Page must be an integer',
+      'number.min': 'Page must be at least 1'
+    }),
+  limit: Joi.number().integer().min(1).max(50).default(20)
+    .messages({
+      'number.base': 'Limit must be a number',
+      'number.integer': 'Limit must be an integer',
+      'number.min': 'Limit must be at least 1',
+      'number.max': 'Limit cannot exceed 50'
+    })
+});
+
+// Folder documents validation schema
+const folderDocumentsSchema = Joi.object({
+  page: Joi.number().integer().min(1).default(1)
+    .messages({
+      'number.base': 'Page must be a number',
+      'number.integer': 'Page must be an integer',
+      'number.min': 'Page must be at least 1'
+    }),
+  limit: Joi.number().integer().min(1).max(50).default(20)
+    .messages({
+      'number.base': 'Limit must be a number',
+      'number.integer': 'Limit must be an integer',
+      'number.min': 'Limit must be at least 1',
+      'number.max': 'Limit cannot exceed 50'
+    }),
+  sortBy: Joi.string().valid('name', 'recent', 'size').default('name')
+    .messages({
+      'any.only': 'sortBy must be one of: name, recent, size'
+    })
+});
+
 // Validation middleware factory
 const validate = (schema, property = 'body') => (req, res, next) => {
   const { error, value } = schema.validate(req[property], {
@@ -613,6 +728,14 @@ const validateShareContent = validate(shareContentSchema);
 const validateCommunityPostCreate = validate(communityPostCreateSchema);
 const validateCommunityPostQuery = validate(communityPostQuerySchema, 'query');
 
+// New document validation middleware
+const validateExtractText = validate(extractTextSchema, 'query');
+const validateGenerateDownloadLink = validate(generateDownloadLinkSchema);
+const validateBulkMoveDocuments = validate(bulkMoveDocumentsSchema);
+const validateCreateFolder = validate(createFolderSchema);
+const validateGetFolders = validate(getFoldersSchema, 'query');
+const validateFolderDocuments = validate(folderDocumentsSchema, 'query');
+
 module.exports = {
   // Schemas
   articleCreateSchema,
@@ -630,6 +753,12 @@ module.exports = {
   shareContentSchema,
   communityPostCreateSchema,
   communityPostQuerySchema,
+  extractTextSchema,
+  generateDownloadLinkSchema,
+  bulkMoveDocumentsSchema,
+  createFolderSchema,
+  getFoldersSchema,
+  folderDocumentsSchema,
 
   // Middleware functions
   validate,
@@ -647,5 +776,11 @@ module.exports = {
   validateCategory,
   validateShareContent,
   validateCommunityPostCreate,
-  validateCommunityPostQuery
+  validateCommunityPostQuery,
+  validateExtractText,
+  validateGenerateDownloadLink,
+  validateBulkMoveDocuments,
+  validateCreateFolder,
+  validateGetFolders,
+  validateFolderDocuments
 };

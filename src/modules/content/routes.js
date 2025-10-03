@@ -6,7 +6,7 @@ const router = express.Router();
 // Import controllers
 const ArticleController = require('./articleController');
 const VideoController = require('./videoController');
-const DocumentController = require('./documentController');
+const { DocumentController, FolderController } = require('./documentController');
 const FeedController = require('./feedController');
 const InteractionController = require('./interactionController');
 
@@ -31,7 +31,13 @@ const {
   validateCategory,
   validateShareContent,
   validateCommunityPostCreate,
-  validateCommunityPostQuery
+  validateCommunityPostQuery,
+  validateExtractText,
+  validateGenerateDownloadLink,
+  validateBulkMoveDocuments,
+  validateCreateFolder,
+  validateGetFolders,
+  validateFolderDocuments
 } = require('./validation');
 
 // Article routes
@@ -376,6 +382,58 @@ router.get(
   '/documents/:id/recommendations',
   validateContentId,
   DocumentController.getDocumentRecommendations
+);
+
+// New document endpoints
+router.get(
+  '/documents/:id/extract-text',
+  authenticateToken,
+  requireActiveUser,
+  validateContentId,
+  validateExtractText,
+  DocumentController.extractText
+);
+
+router.post(
+  '/documents/:id/download-link',
+  authenticateToken,
+  requireActiveUser,
+  validateContentId,
+  validateGenerateDownloadLink,
+  DocumentController.generateDownloadLink
+);
+
+router.put(
+  '/documents/bulk-move',
+  authenticateToken,
+  requireActiveUser,
+  validateBulkMoveDocuments,
+  DocumentController.bulkMoveDocuments
+);
+
+// Folder routes
+router.post(
+  '/folders',
+  authenticateToken,
+  requireActiveUser,
+  validateCreateFolder,
+  FolderController.createFolder
+);
+
+router.get(
+  '/folders',
+  authenticateToken,
+  requireActiveUser,
+  validateGetFolders,
+  FolderController.getFolders
+);
+
+router.get(
+  '/folders/:folderId/documents',
+  authenticateToken,
+  requireActiveUser,
+  validateFolderDocuments,
+  FolderController.getFolderDocuments
 );
 
 // Feed routes
