@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{title}}</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0; background-color: #f8f9fa; }
+    .container { max-width: 600px; margin: 0 auto; background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); }
+    .header { background: linear-gradient(135deg, #17a2b8 0%, #138496 100%); color: white; padding: 40px 30px; text-align: center; }
+    .header h1 { margin: 0; font-size: 28px; font-weight: 700; }
+    .content { padding: 40px 30px; }
+    .message { font-size: 16px; margin-bottom: 20px; color: #555; }
+    .info-box { background: #d1ecf1; border: 1px solid #bee5eb; border-radius: 8px; padding: 20px; margin: 20px 0; }
+    .info-box h3 { margin-top: 0; color: #0c5460; }
+    .button { display: inline-block; background: #17a2b8; color: white; padding: 14px 28px; text-decoration: none; border-radius: 8px; font-weight: 600; margin: 20px 0; box-shadow: 0 4px 12px rgba(23, 162, 184, 0.4); }
+    .button:hover { background: #138496; }
+    .footer { background: #f8f9fa; padding: 30px; text-align: center; font-size: 14px; color: #666; border-top: 1px solid #e9ecef; }
+    .unsubscribe { font-size: 12px; margin-top: 20px; }
+    .unsubscribe a { color: #17a2b8; text-decoration: none; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>ℹ️ System Notification</h1>
+    </div>
+
+    <div class="content">
+      <p class="message">{{message}}</p>
+
+      {{#if actionUrl}}
+      <div style="text-align: center;">
+        <a href="{{actionUrl}}" class="button">{{actionText}}</a>
+      </div>
+      {{/if}}
+
+      {{#if trackingPixel}}{{{trackingPixel}}}{{/if}}
+    </div>
+
+    <div class="footer">
+      <p>
+        © {{year}} Mediaverse. All rights reserved.<br>
+        <a href="{{preferencesUrl}}">Manage Notification Preferences</a>
+      </p>
+      <p class="unsubscribe">
+        <a href="{{unsubscribeUrl}}">Unsubscribe from system notifications</a>
+      </p>
+    </div>
+  </div>
+</body>
+</html>

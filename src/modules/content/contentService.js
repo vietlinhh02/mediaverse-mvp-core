@@ -1,0 +1,1036 @@
+// Content service for managing articles, videos, and documents
+const { prisma, handleDatabaseError } = require('../../config/database');
+const { cache } = require('../../config/redis');
+const { AppError } = require('../../middleware/errorHandler');
+
+class ContentService {
+  // Helper method to transform content response (map body to content for API)
+  static transformContentResponse(content) {
+    if (!content) return null;
+    
+    // Map body field to content for API response
+    if (content.body !== undefined) {
+      content.content = content.body;
+      delete content.body;
+    }
+    
+    return content;
+  }
+
+  // Helper method to calculate reading time for articles
+  static calculateReadingTime(content, wordsPerMinute = 200) {
+    const wordCount = content.split(/\s+/).length;
+    const readingTime = Math.ceil(wordCount / wordsPerMinute);
+    return Math.max(readingTime, 1); // Minimum 1 minute
+  }
+
+  // Helper method to generate content metadata
+  static generateContentMetadata(content, type, additionalData = {}) {
+    const metadata = {
+      wordCount: 0,
+      readingTime: 0,
+      tags: content.tags || [],
+      category: content.category,
+      processingStatus: 'queued', // Default for videos
+      ...additionalData
+    };
+
+    if (type === 'article' && content.content) {
+      metadata.wordCount = content.content.split(/\s+/).length;
+      metadata.readingTime = this.calculateReadingTime(content.content);
+    }
+
+    return metadata;
+  }
+
+  // Helper method to update content stats
+  static async updateContentStats(contentId, statsUpdate = {}) {
+    const cacheKey = `content:stats:${contentId}`;
+
+    try {
+      // Get current stats from cache or database
+      let currentStats = await cache.get(cacheKey);
+
+      if (!currentStats) {
+        const content = await prisma.content.findUnique({
+          where: { id: contentId },
+          select: { stats: true }
+        });
+
+        if (!content) {
+          throw new AppError('Content not found', 404, 'CONTENT_NOT_FOUND');
+        }
+
+        currentStats = content.stats || {};
+      }
+
+      // Update stats
+      const updatedStats = { ...currentStats, ...statsUpdate };
+
+      // Update in database
+      await prisma.content.update({
+        where: { id: contentId },
+        data: { stats: updatedStats }
+      });
+
+      // Update cache
+      await cache.set(cacheKey, updatedStats, 3600); // Cache for 1 hour
+
+      return updatedStats;
+    } catch (error) {
+      console.error('Error updating content stats:', error);
+      throw handleDatabaseError(error, 'updateContentStats');
+    }
+  }
+
+  // Create article
+  static async createArticle(userId, articleData, channelId = null) {
+    try {
+      const metadata = this.generateContentMetadata(articleData, 'article');
+
+      const content = await prisma.content.create({
+        data: {
+          type: 'article',
+          title: articleData.title,
+          body: articleData.content,
+          description: articleData.description,
+          featuredImage: articleData.featuredImage || null,
+          category: articleData.category,
+          tags: articleData.tags || [],
+          metadata,
+          status: articleData.status || 'draft',
+          visibility: articleData.visibility || 'public',
+          author: {
+            connect: { id: userId }
+          },
+          channel: channelId ? {
+            connect: { id: channelId }
+          } : undefined
+        },
+        include: {
+          author: {
+            select: {
+              id: true,
+              username: true,
+              profile: {
+                select: {
+                  displayName: true,
+                  avatarUrl: true
+                }
+              }
+            }
+          },
+          channel: {
+            select: {
+              id: true,
+              name: true
+            }
+          }
+        }
+      });
+
+      // Cache the content
+      await cache.set(`content:${content.id}`, content, 3600);
+
+      return this.transformContentResponse(content);
+    } catch (error) {
+      console.error('Error creating article:', error);
+      throw handleDatabaseError(error, 'createArticle');
+    }
+  }
+
+  // Create video
+  static async createVideo(userId, videoData, channelId = null) {
+    try {
+      const metadata = this.generateContentMetadata(videoData, 'video', {
+        duration: videoData.duration || 0,
+        resolution: videoData.resolution || 'unknown',
+        fileSize: videoData.fileSize || 0,
+        videoUrl: videoData.videoUrl
+      });
+
+      const content = await prisma.content.create({
+        data: {
+          type: 'video',
+          title: videoData.title,
+          description: videoData.description,
+          category: videoData.category,
+          tags: videoData.tags || [],
+          metadata,
+          status: videoData.status || 'draft',
+          visibility: videoData.visibility || 'public',
+          author: {
+            connect: { id: userId }
+          },
+          channel: channelId ? {
+            connect: { id: channelId }
+          } : undefined
+        },
+        include: {
+          author: {
+            select: {
+              id: true,
+              username: true,
+              profile: {
+                select: {
+                  displayName: true,
+                  avatarUrl: true
+                }
+              }
+            }
+          },
+          channel: {
+            select: {
+              id: true,
+              name: true
+            }
+          }
+        }
+      });
+
+      // Cache the content
+      await cache.set(`content:${content.id}`, content, 3600);
+
+      return this.transformContentResponse(content);
+    } catch (error) {
+      console.error('Error creating video:', error);
+      throw handleDatabaseError(error, 'createVideo');
+    }
+  }
+
+  // Create document
+  static async createDocument(userId, documentData, channelId = null) {
+    try {
+      const metadata = this.generateContentMetadata(documentData, 'document', {
+        pageCount: documentData.pageCount || 0,
+        fileSize: documentData.fileSize || 0,
+        documentUrl: documentData.documentUrl,
+        textContent: documentData.textContent
+      });
+
+      const content = await prisma.content.create({
+        data: {
+          type: 'document',
+          title: documentData.title,
+          description: documentData.description,
+          category: documentData.category,
+          tags: documentData.tags || [],
+          metadata,
+          status: documentData.status || 'draft',
+          visibility: documentData.visibility || 'public',
+          author: {
+            connect: { id: userId }
+          },
+          channel: channelId ? {
+            connect: { id: channelId }
+          } : undefined
+        },
+        include: {
+          author: {
+            select: {
+              id: true,
+              username: true,
+              profile: {
+                select: {
+                  displayName: true,
+                  avatarUrl: true
+                }
+              }
+            }
+          },
+          channel: {
+            select: {
+              id: true,
+              name: true
+            }
+          }
+        }
+      });
+
+      // Cache the content
+      await cache.set(`content:${content.id}`, content, 3600);
+
+      return this.transformContentResponse(content);
+    } catch (error) {
+      console.error('Error creating document:', error);
+      throw handleDatabaseError(error, 'createDocument');
+    }
+  }
+
+  // Update content
+  static async updateContent(contentId, updateData, userId = null) {
+    try {
+      // Check if content exists and user has permission
+      const existingContent = await prisma.content.findUnique({
+        where: { id: contentId },
+        include: {
+          author: {
+            select: { id: true }
+          }
+        }
+      });
+
+      if (!existingContent) {
+        throw new AppError('Content not found', 404, 'CONTENT_NOT_FOUND');
+      }
+
+      // Check permission (author or admin/moderator)
+      if (userId && existingContent.authorId !== userId) {
+        const user = await prisma.user.findUnique({
+          where: { id: userId },
+          select: { role: true }
+        });
+
+        if (!user || !['admin', 'moderator'].includes(user.role)) {
+          throw new AppError('Unauthorized to update this content', 403, 'UNAUTHORIZED');
+        }
+      }
+
+      // Map 'content' field to 'body' field (for database schema compatibility)
+      if (updateData.content !== undefined) {
+        updateData.body = updateData.content;
+        delete updateData.content;
+      }
+
+      // Generate updated metadata if content is being updated
+      let metadata = existingContent.metadata || {};
+      if (updateData.body && existingContent.type === 'article') {
+        metadata = this.generateContentMetadata({ content: updateData.body }, 'article');
+      }
+
+      // If metadata is provided in updateData, merge it
+      if (updateData.metadata) {
+        metadata = { ...metadata, ...updateData.metadata };
+        delete updateData.metadata; // Remove metadata from updateData to avoid conflict
+      }
+
+      const updatedContent = await prisma.content.update({
+        where: { id: contentId },
+        data: {
+          ...updateData,
+          metadata,
+          updatedAt: new Date()
+        },
+        include: {
+          author: {
+            select: {
+              id: true,
+              username: true,
+              profile: {
+                select: {
+                  displayName: true,
+                  avatarUrl: true
+                }
+              }
+            }
+          },
+          channel: {
+            select: {
+              id: true,
+              name: true
+            }
+          }
+        }
+      });
+
+      // Update cache
+      await cache.set(`content:${contentId}`, updatedContent, 3600);
+
+      return this.transformContentResponse(updatedContent);
+    } catch (error) {
+      console.error('Error updating content:', error);
+      throw handleDatabaseError(error, 'updateContent');
+    }
+  }
+
+  // Delete content
+  static async deleteContent(contentId, userId = null) {
+    try {
+      // Check if content exists and user has permission
+      const existingContent = await prisma.content.findUnique({
+        where: { id: contentId },
+        include: {
+          author: {
+            select: { id: true }
+          }
+        }
+      });
+
+      if (!existingContent) {
+        throw new AppError('Content not found', 404, 'CONTENT_NOT_FOUND');
+      }
+
+      // Check permission (author or admin/moderator)
+      if (userId && existingContent.authorId !== userId) {
+        const user = await prisma.user.findUnique({
+          where: { id: userId },
+          select: { role: true }
+        });
+
+        if (!user || !['admin', 'moderator'].includes(user.role)) {
+          throw new AppError('Unauthorized to delete this content', 403, 'UNAUTHORIZED');
+        }
+      }
+
+      // Delete related data (likes, comments will be cascade deleted)
+      await prisma.content.delete({
+        where: { id: contentId }
+      });
+
+      // Remove from cache
+      await cache.del(`content:${contentId}`);
+      await cache.del(`content:stats:${contentId}`);
+
+      return { success: true, message: 'Content deleted successfully' };
+    } catch (error) {
+      console.error('Error deleting content:', error);
+      throw handleDatabaseError(error, 'deleteContent');
+    }
+  }
+
+  // Publish content
+  static async publishContent(contentId, userId = null) {
+    try {
+      const content = await this.updateContent(contentId, {
+        status: 'published',
+        publishedAt: new Date()
+      }, userId);
+
+      return content;
+    } catch (error) {
+      console.error('Error publishing content:', error);
+      throw handleDatabaseError(error, 'publishContent');
+    }
+  }
+
+  // Get content by ID
+  static async getContent(contentId, incrementViews = false) {
+    try {
+      const cacheKey = `content:${contentId}`;
+      let content = await cache.get(cacheKey);
+
+      if (!content) {
+        content = await prisma.content.findUnique({
+          where: { id: contentId },
+          include: {
+            author: {
+              select: {
+                id: true,
+                username: true,
+                profile: {
+                  select: {
+                    displayName: true,
+                    avatarUrl: true
+                  }
+                }
+              }
+            },
+            channel: {
+              select: {
+                id: true,
+                name: true
+              }
+            },
+            _count: {
+              select: {
+                likes: true,
+                comments: true
+              }
+            }
+          }
+        });
+
+        if (!content) {
+          throw new AppError('Content not found', 404, 'CONTENT_NOT_FOUND');
+        }
+
+        // Cache for 1 hour
+        await cache.set(cacheKey, content, 3600);
+      }
+
+      // Increment view count if requested
+      if (incrementViews && content.status === 'published') {
+        await this.updateContentStats(contentId, {
+          views: (content.stats?.views || 0) + 1
+        });
+      }
+
+      return this.transformContentResponse(content);
+    } catch (error) {
+      console.error('Error getting content:', error);
+      throw handleDatabaseError(error, 'getContent');
+    }
+  }
+
+  // Search content with full-text search
+  static async searchContent(searchParams) {
+    try {
+      const {
+        q,
+        type = 'all',
+        category,
+        tags = [],
+        page = 1,
+        limit = 20,
+        sortBy = 'createdAt',
+        sortOrder = 'desc'
+      } = searchParams;
+
+      const skip = (page - 1) * limit;
+
+      // Build search conditions
+      const where = {
+        status: 'published',
+        visibility: { in: ['public', 'unlisted'] }
+      };
+
+      if (type !== 'all') {
+        where.type = type;
+      }
+
+      if (category) {
+        where.category = category;
+      }
+
+      if (tags.length > 0) {
+        where.tags = { hasEvery: tags };
+      }
+
+      // Full-text search using PostgreSQL tsvector
+      const searchCondition = q ? {
+        OR: [
+          { title: { contains: q, mode: 'insensitive' } },
+          { description: { contains: q, mode: 'insensitive' } },
+          { tags: { has: q } }
+        ]
+      } : {};
+
+      const orderBy = {};
+      orderBy[sortBy] = sortOrder;
+
+      // For trending content, use engagement-based sorting
+      if (sortBy === 'trending') {
+        orderBy.createdAt = 'desc';
+      }
+
+      const [contents, total] = await Promise.all([
+        prisma.content.findMany({
+          where: { ...where, ...searchCondition },
+          include: {
+            author: {
+              select: {
+                id: true,
+                username: true,
+                profile: {
+                  select: {
+                    displayName: true,
+                    avatarUrl: true
+                  }
+                }
+              }
+            },
+            channel: {
+              select: {
+                id: true,
+                name: true
+              }
+            },
+            _count: {
+              select: {
+                likes: true,
+                comments: true
+              }
+            }
+          },
+          orderBy,
+          skip,
+          take: limit
+        }),
+        prisma.content.count({
+          where: { ...where, ...searchCondition }
+        })
+      ]);
+
+      return {
+        contents: contents.map(content => this.transformContentResponse(content)),
+        pagination: {
+          page,
+          limit,
+          total,
+          pages: Math.ceil(total / limit)
+        }
+      };
+    } catch (error) {
+      console.error('Error searching content:', error);
+      throw handleDatabaseError(error, 'searchContent');
+    }
+  }
+
+  // Get personalized feed
+  static async getPersonalizedFeed(userId, feedParams) {
+    try {
+      const { page = 1, limit = 20, useSmartAlgorithm = true, type, category } = feedParams;
+      const skip = (page - 1) * limit;
+
+      console.log('🔍 [PersonalizedFeed] feedParams:', feedParams);
+      console.log('🔍 [PersonalizedFeed] type filter:', type);
+      console.log('🔍 [PersonalizedFeed] category filter:', category);
+
+      // Build base filter from feedParams
+      const baseFilter = {
+        status: 'published',
+        visibility: { in: ['public', 'unlisted'] },
+        ...(type && { type }),
+        ...(category && { category })
+      };
+
+      console.log('🔍 [PersonalizedFeed] baseFilter:', JSON.stringify(baseFilter, null, 2));
+
+      // Use smart recommendation algorithm (Facebook/TikTok style)
+      if (useSmartAlgorithm) {
+        const SmartRecommendationService = require('../../services/smartRecommendationService');
+        
+        // Get user interest profile from behavior
+        const profile = await SmartRecommendationService.getUserInterestProfile(userId);
+        const mixRatio = SmartRecommendationService.getFeedMixRatio(profile.totalInteractions);
+        
+        const personalizedCount = Math.ceil(limit * mixRatio.personalized);
+        const trendingCount = Math.ceil(limit * mixRatio.trending);
+        const diverseCount = limit - personalizedCount - trendingCount;
+
+        const contentPool = [];
+        const usedIds = new Set();
+
+        // 1. Get personalized content (based on behavior)
+        if (personalizedCount > 0 && profile.totalInteractions > 0) {
+          const personalizedQuery = SmartRecommendationService.buildPersonalizedQuery(profile);
+          
+          if (personalizedQuery.length > 0) {
+            const whereClause = {
+              ...baseFilter,
+              OR: personalizedQuery
+            };
+            console.log('🔍 [Personalized Query] where:', JSON.stringify(whereClause, null, 2));
+            
+            const personalized = await prisma.content.findMany({
+              where: whereClause,
+              include: {
+                author: {
+                  select: {
+                    id: true,
+                    username: true,
+                    profile: {
+                      select: {
+                        displayName: true,
+                        avatarUrl: true
+                      }
+                    }
+                  }
+                },
+                channel: {
+                  select: {
+                    id: true,
+                    name: true
+                  }
+                },
+                _count: {
+                  select: {
+                    likes: true,
+                    comments: true
+                  }
+                }
+              },
+              orderBy: { createdAt: 'desc' },
+              take: personalizedCount * 2
+            });
+
+            personalized.forEach(content => {
+              if (!usedIds.has(content.id) && contentPool.length < personalizedCount) {
+                contentPool.push({ ...content, feedSource: 'personalized' });
+                usedIds.add(content.id);
+              }
+            });
+          }
+        }
+
+        // 2. Get trending content (popular in last 7 days)
+        if (trendingCount > 0) {
+          const sevenDaysAgo = new Date();
+          sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+
+          const trending = await prisma.content.findMany({
+            where: {
+              ...baseFilter,
+              createdAt: { gte: sevenDaysAgo },
+              id: { notIn: Array.from(usedIds) }
+            },
+            include: {
+              author: {
+                select: {
+                  id: true,
+                  username: true,
+                  profile: {
+                    select: {
+                      displayName: true,
+                      avatarUrl: true
+                    }
+                  }
+                }
+              },
+              channel: {
+                select: {
+                  id: true,
+                  name: true
+                }
+              },
+              _count: {
+                select: {
+                  likes: true,
+                  comments: true
+                }
+              }
+            },
+            orderBy: [
+              { likes: { _count: 'desc' } },
+              { comments: { _count: 'desc' } }
+            ],
+            take: trendingCount
+          });
+
+          trending.forEach(content => {
+            if (!usedIds.has(content.id)) {
+              contentPool.push({ ...content, feedSource: 'trending' });
+              usedIds.add(content.id);
+            }
+          });
+        }
+
+        // 3. Get diverse content (unexplored categories)
+        if (diverseCount > 0) {
+          const allCategories = [
+            'technology', 'education', 'entertainment', 'business',
+            'health', 'lifestyle', 'science', 'sports', 'politics', 'travel', 'other'
+          ];
+
+          const unexploredCategories = allCategories.filter(
+            cat => !profile.categories.includes(cat)
+          );
+
+          if (unexploredCategories.length > 0) {
+            const diverse = await prisma.content.findMany({
+              where: {
+                ...baseFilter,
+                category: { in: unexploredCategories },
+                id: { notIn: Array.from(usedIds) }
+              },
+              include: {
+                author: {
+                  select: {
+                    id: true,
+                    username: true,
+                    profile: {
+                      select: {
+                        displayName: true,
+                        avatarUrl: true
+                      }
+                    }
+                  }
+                },
+                channel: {
+                  select: {
+                    id: true,
+                    name: true
+                  }
+                },
+                _count: {
+                  select: {
+                    likes: true,
+                    comments: true
+                  }
+                }
+              },
+              orderBy: { createdAt: 'desc' },
+              take: diverseCount
+            });
+
+            diverse.forEach(content => {
+              if (!usedIds.has(content.id)) {
+                contentPool.push({ ...content, feedSource: 'diverse' });
+                usedIds.add(content.id);
+              }
+            });
+          }
+        }
+
+        // 4. Shuffle for variety
+        const shuffled = SmartRecommendationService.shuffleArray(contentPool);
+        const paginatedContent = shuffled.slice(skip, skip + limit);
+
+        return {
+          contents: paginatedContent.map(content => this.transformContentResponse(content)),
+          pagination: {
+            page,
+            limit,
+            total: shuffled.length,
+            pages: Math.ceil(shuffled.length / limit)
+          },
+          feedMix: {
+            personalized: contentPool.filter(c => c.feedSource === 'personalized').length,
+            trending: contentPool.filter(c => c.feedSource === 'trending').length,
+            diverse: contentPool.filter(c => c.feedSource === 'diverse').length
+          },
+          userEngagementLevel: profile.totalInteractions
+        };
+      }
+
+      // Fallback: Traditional preference-based feed
+      // Get user preferences and following
+      const [user, following] = await Promise.all([
+        prisma.user.findUnique({
+          where: { id: userId },
+          include: {
+            profile: {
+              select: { preferences: true }
+            }
+          }
+        }),
+        prisma.follow.findMany({
+          where: { followerId: userId },
+          select: { followeeId: true }
+        })
+      ]);
+
+      const followingIds = following.map((f) => f.followeeId);
+      const userPreferences = user.profile?.preferences || {};
+
+      // Build feed query based on preferences and following
+      const where = {
+        status: 'published',
+        visibility: { in: ['public', 'unlisted'] },
+        OR: [
+          { authorId: { in: followingIds } }, // Content from followed users
+          {
+            category: {
+              in: userPreferences.preferredCategories || []
+            }
+          }, // Content in preferred categories
+          {
+            tags: {
+              hasSome: userPreferences.preferredTags || []
+            }
+          } // Content with preferred tags
+        ]
+      };
+
+      const [contents, total] = await Promise.all([
+        prisma.content.findMany({
+          where,
+          include: {
+            author: {
+              select: {
+                id: true,
+                username: true,
+                profile: {
+                  select: {
+                    displayName: true,
+                    avatarUrl: true
+                  }
+                }
+              }
+            },
+            channel: {
+              select: {
+                id: true,
+                name: true
+              }
+            },
+            _count: {
+              select: {
+                likes: true,
+                comments: true
+              }
+            }
+          },
+          orderBy: [
+            { publishedAt: 'desc' },
+            { createdAt: 'desc' }
+          ],
+          skip,
+          take: limit
+        }),
+        prisma.content.count({ where })
+      ]);
+
+      return {
+        contents: contents.map(content => this.transformContentResponse(content)),
+        pagination: {
+          page,
+          limit,
+          total,
+          pages: Math.ceil(total / limit)
+        }
+      };
+    } catch (error) {
+      console.error('Error getting personalized feed:', error);
+      throw handleDatabaseError(error, 'getPersonalizedFeed');
+    }
+  }
+
+  // Get trending content
+  static async getTrendingContent(category = null) {
+    try {
+      const cacheKey = `trending:content:${category || 'all'}`;
+      const cachedResult = await cache.get(cacheKey);
+
+      if (cachedResult) {
+        return cachedResult;
+      }
+
+      // Calculate trending score based on engagement
+      const where = {
+        status: 'published',
+        visibility: { in: ['public', 'unlisted'] },
+        createdAt: {
+          gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) // Last 7 days
+        }
+      };
+
+      if (category) {
+        where.category = category;
+      }
+
+      const contents = await prisma.content.findMany({
+        where,
+        include: {
+          author: {
+            select: {
+              id: true,
+              username: true,
+              profile: {
+                select: {
+                  displayName: true,
+                  avatarUrl: true
+                }
+              }
+            }
+          },
+          channel: {
+            select: {
+              id: true,
+              name: true
+            }
+          },
+          _count: {
+            select: {
+              likes: true,
+              comments: true
+            }
+          }
+        }
+      });
+
+      // Calculate trending score
+      const scoredContents = contents.map((content) => {
+        const stats = content.stats || {};
+        const ageInHours = (Date.now() - new Date(content.createdAt).getTime()) / (1000 * 60 * 60);
+        const ageScore = Math.max(0, 1 - (ageInHours / 168)); // Decay over 7 days
+
+        const engagementScore = (
+          (stats.views || 0) * 1
+          + (content._count.likes || 0) * 5
+          + (content._count.comments || 0) * 3
+        );
+
+        return {
+          ...content,
+          trendingScore: engagementScore * ageScore
+        };
+      });
+
+      // Sort by trending score and take top 20
+      const trendingContent = scoredContents
+        .sort((a, b) => b.trendingScore - a.trendingScore)
+        .slice(0, 20)
+        .map(content => this.transformContentResponse(content));
+
+      const result = { contents: trendingContent };
+
+      // Cache for 30 minutes
+      await cache.set(cacheKey, result, 1800);
+
+      return result;
+    } catch (error) {
+      console.error('Error getting trending content:', error);
+      throw handleDatabaseError(error, 'getTrendingContent');
+    }
+  }
+
+  // Get content by category
+  static async getContentByCategory(category, paginationParams) {
+    try {
+      const { page = 1, limit = 20 } = paginationParams;
+      const skip = (page - 1) * limit;
+
+      const [contents, total] = await Promise.all([
+        prisma.content.findMany({
+          where: {
+            status: 'published',
+            visibility: { in: ['public', 'unlisted'] },
+            category
+          },
+          include: {
+            author: {
+              select: {
+                id: true,
+                username: true,
+                profile: {
+                  select: {
+                    displayName: true,
+                    avatarUrl: true
+                  }
+                }
+              }
+            },
+            channel: {
+              select: {
+                id: true,
+                name: true
+              }
+            },
+            _count: {
+              select: {
+                likes: true,
+                comments: true
+              }
+            }
+          },
+          orderBy: { publishedAt: 'desc' },
+          skip,
+          take: limit
+        }),
+        prisma.content.count({
+          where: {
+            status: 'published',
+            visibility: { in: ['public', 'unlisted'] },
+            category
+          }
+        })
+      ]);
+
+      return {
+        contents: contents.map(content => this.transformContentResponse(content)),
+        pagination: {
+          page,
+          limit,
+          total,
+          pages: Math.ceil(total / limit)
+        }
+      };
+    } catch (error) {
+      console.error('Error getting content by category:', error);
+      throw handleDatabaseError(error, 'getContentByCategory');
+    }
+  }
+}
+
+module.exports = ContentService;
