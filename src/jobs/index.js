@@ -6,6 +6,8 @@ module.exports = {
   mediaQueue: require('./videoQueue'),
   notificationQueue: require('./notificationQueue'),
   notificationWorker: require('./notificationWorker'),
+  documentQueue: require('./documentQueue'),
+  documentWorker: require('./documentWorker'),
   scheduler: require('./scheduler'),
   worker: require('./worker')
 };

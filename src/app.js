@@ -105,6 +105,7 @@ const { setupWorkers } = require('./jobs/worker');
 const { setupNotificationWorkers } = require('./jobs/notificationWorker');
 const { setupAnalyticsWorker } = require('./jobs/analyticsQueue');
 const { setupReportingWorker } = require('./jobs/reportingWorker');
+const { setupDocumentWorker } = require('./jobs/documentWorker');
 const searchService = require('./services/searchService'); // Import the search service
 
 /**
@@ -372,6 +373,7 @@ const initializeServices = async () => {
       setupNotificationWorkers();
       setupAnalyticsWorker();
       setupReportingWorker();
+      setupDocumentWorker();
       console.log('Background job workers started');
     }
 
