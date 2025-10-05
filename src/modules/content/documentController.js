@@ -98,7 +98,7 @@ const ContentService = require('./contentService');
 const { asyncHandler, AppError } = require('../../middleware/errorHandler');
 const { authenticateToken, requireActiveUser } = require('../../middleware/auth');
 const { uploadMiddleware, validateUploadedFile, handleUploadError } = require('../../middleware/upload');
-const { queue } = require('../../config/redis');
+const { documentQueue } = require('../../jobs/documentQueue');
 const fs = require('fs').promises;
 const searchService = require('../../services/searchService'); // Import the search service
 
@@ -258,7 +258,15 @@ class DocumentController {
         jobType: 'document_processing'
       };
 
-      await queue.push('document-processing', processingJob, 0);
+      // Add job to Bull queue
+      await documentQueue.add(processingJob, {
+        priority: 1,
+        attempts: 3,
+        backoff: {
+          type: 'exponential',
+          delay: 5000
+        }
+      });
 
       console.log(`Document processing queued for document ID: ${documentId}`);
     } catch (error) {
@@ -318,6 +326,108 @@ class DocumentController {
     res.json({
       success: true,
       data: document
+    });
+  });
+
+  /**
+   * @swagger
+   * /api/content/documents:
+   *   get:
+   *     summary: Get all documents
+   *     tags: [Documents]
+   *     parameters:
+   *       - in: query
+   *         name: page
+   *         schema:
+   *           type: integer
+   *           default: 1
+   *         description: Page number
+   *       - in: query
+   *         name: limit
+   *         schema:
+   *           type: integer
+   *           default: 20
+   *         description: Items per page
+   *       - in: query
+   *         name: category
+   *         schema:
+   *           type: string
+   *         description: Filter by category
+   *       - in: query
+   *         name: sortBy
+   *         schema:
+   *           type: string
+   *           enum: [recent, popular, title, size]
+   *           default: recent
+   *         description: Sort order
+   *     responses:
+   *       200:
+   *         description: List of documents
+   */
+  static getAllDocuments = asyncHandler(async (req, res) => {
+    const { page = 1, limit = 20, category, sortBy = 'recent' } = req.query;
+    const skip = (page - 1) * limit;
+
+    const where = {
+      type: 'document',
+      status: 'published',
+      visibility: 'public'
+    };
+
+    if (category) {
+      where.category = category;
+    }
+
+    const orderBy = sortBy === 'popular' ? { views: 'desc' }
+      : sortBy === 'title' ? { title: 'asc' }
+      : sortBy === 'size' ? [{ metadata: { path: ['fileSize'] } }]
+      : { createdAt: 'desc' };
+
+    const [documents, total] = await Promise.all([
+      require('../../config/database').prisma.content.findMany({
+        where,
+        select: {
+          id: true,
+          title: true,
+          description: true,
+          featuredImage: true,
+          category: true,
+          tags: true,
+          views: true,
+          likesCount: true,
+          commentsCount: true,
+          metadata: true,
+          createdAt: true,
+          publishedAt: true,
+          author: {
+            select: {
+              id: true,
+              username: true,
+              profile: {
+                select: {
+                  displayName: true,
+                  avatarUrl: true
+                }
+              }
+            }
+          }
+        },
+        orderBy,
+        skip,
+        take: parseInt(limit)
+      }),
+      require('../../config/database').prisma.content.count({ where })
+    ]);
+
+    res.json({
+      success: true,
+      data: documents,
+      pagination: {
+        page: parseInt(page),
+        limit: parseInt(limit),
+        total,
+        pages: Math.ceil(total / limit)
+      }
     });
   });
 
@@ -578,7 +688,46 @@ class DocumentController {
     });
   });
 
-  // Search documents
+  /**
+   * @swagger
+   * /api/content/documents/search:
+   *   get:
+   *     summary: Search documents
+   *     tags: [Documents]
+   *     parameters:
+   *       - in: query
+   *         name: q
+   *         schema:
+   *           type: string
+   *         description: Search query
+   *       - in: query
+   *         name: limit
+   *         schema:
+   *           type: integer
+   *           default: 20
+   *         description: Number of results per page
+   *       - in: query
+   *         name: offset
+   *         schema:
+   *           type: integer
+   *           default: 0
+   *         description: Offset for pagination
+   *       - in: query
+   *         name: sortBy
+   *         schema:
+   *           type: string
+   *           enum: [relevance, recent, popular, size]
+   *           default: relevance
+   *         description: Sort order
+   *       - in: query
+   *         name: category
+   *         schema:
+   *           type: string
+   *         description: Filter by category
+   *     responses:
+   *       200:
+   *         description: Search results
+   */
   static searchDocuments = asyncHandler(async (req, res) => {
     const {
       q, limit = 20, offset = 0, sortBy = 'relevance'
@@ -661,9 +810,41 @@ class DocumentController {
     });
   });
 
-  // Get document preview
+  /**
+   * @swagger
+   * /api/content/documents/{id}/preview:
+   *   get:
+   *     summary: Get document preview
+   *     tags: [Documents]
+   *     parameters:
+   *       - in: path
+   *         name: id
+   *         required: true
+   *         schema:
+   *           type: string
+   *         description: Document ID
+   *       - in: query
+   *         name: page
+   *         schema:
+   *           type: integer
+   *           default: 1
+   *         description: Page number for multi-page documents
+   *       - in: query
+   *         name: format
+   *         schema:
+   *           type: string
+   *           enum: [text, html]
+   *           default: text
+   *         description: Preview format
+   *     responses:
+   *       200:
+   *         description: Document preview retrieved successfully
+   *       404:
+   *         description: Document not found
+   */
   static getDocumentPreview = asyncHandler(async (req, res) => {
     const { id } = req.params;
+    const { page = 1, format = 'text' } = req.query;
 
     const document = await ContentService.getContent(id, false);
 
@@ -688,9 +869,11 @@ class DocumentController {
       title: document.title,
       description: document.description,
       pageCount: document.metadata?.pageCount || 0,
+      currentPage: parseInt(page),
       textContent: document.metadata?.textContent || null,
       previewText: document.metadata?.previewText || null,
-      thumbnailUrl: document.metadata?.thumbnailUrl || null,
+      thumbnailUrl: document.featuredImage || null,
+      format,
       canDownload: document.visibility === 'public'
                    || document.author.id === req.user?.userId
                    || (req.user?.role && ['admin', 'moderator'].includes(req.user.role))
@@ -702,7 +885,34 @@ class DocumentController {
     });
   });
 
-  // Download document
+  /**
+   * @swagger
+   * /api/content/documents/{id}/download:
+   *   get:
+   *     summary: Download document file
+   *     tags: [Documents]
+   *     security:
+   *       - bearerAuth: []
+   *     parameters:
+   *       - in: path
+   *         name: id
+   *         required: true
+   *         schema:
+   *           type: string
+   *         description: Document ID
+   *     responses:
+   *       200:
+   *         description: Document file
+   *         content:
+   *           application/octet-stream:
+   *             schema:
+   *               type: string
+   *               format: binary
+   *       403:
+   *         description: Download not allowed
+   *       404:
+   *         description: Document not found
+   */
   static downloadDocument = asyncHandler(async (req, res) => {
     const { id } = req.params;
 
@@ -713,30 +923,40 @@ class DocumentController {
     }
 
     // Check if user has access to download
-    if (document.visibility === 'private' && document.author.id !== req.user?.userId) {
-      const user = await require('../../config/database').prisma.user.findUnique({
+    if (document.visibility === 'private' && (!req.user || document.author.id !== req.user?.userId)) {
+      const user = req.user ? await require('../../config/database').prisma.user.findUnique({
         where: { id: req.user.userId },
         select: { role: true }
-      });
+      }) : null;
 
       if (!user || !['admin', 'moderator'].includes(user.role)) {
         throw new AppError('Unauthorized to download this document', 403, 'UNAUTHORIZED');
       }
     }
 
-    // In a real implementation, this would serve the actual file
-    // For now, return document info
-    res.json({
-      success: true,
-      data: {
-        documentId: document.id,
-        title: document.title,
-        downloadUrl: document.metadata?.documentUrl || null,
-        filename: document.metadata?.originalName || document.title,
-        fileSize: document.metadata?.fileSize || 0,
-        mimetype: document.metadata?.mimetype || 'application/octet-stream'
-      }
-    });
+    // Get file path from metadata
+    const filePath = document.metadata?.documentUrl;
+    
+    if (!filePath) {
+      throw new AppError('Document file not found', 404, 'FILE_NOT_FOUND');
+    }
+
+    // Check if file exists
+    const fullPath = path.join(__dirname, '../../..', filePath);
+    const fileExists = await fs.access(fullPath).then(() => true).catch(() => false);
+
+    if (!fileExists) {
+      throw new AppError('Document file not available', 404, 'FILE_NOT_AVAILABLE');
+    }
+
+    // Set headers for file download
+    const filename = document.metadata?.originalName || `${document.title}.${document.metadata?.extension || 'pdf'}`;
+    res.setHeader('Content-Type', document.metadata?.mimetype || 'application/octet-stream');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    
+    // Stream file to response
+    const fileStream = require('fs').createReadStream(fullPath);
+    fileStream.pipe(res);
   });
 
   // Reprocess document (admin/moderator only)
@@ -1539,7 +1759,5 @@ class DocumentProcessingUtils {
     }
   }
 }
-
-module.exports = { DocumentController, FolderController };
 
 module.exports = { DocumentController, FolderController };

@@ -283,6 +283,11 @@ router.post(
 );
 
 router.get(
+  '/documents',
+  DocumentController.getAllDocuments
+);
+
+router.get(
   '/documents/search',
   validateContentSearch,
   DocumentController.searchDocuments

@@ -31,9 +31,16 @@ class ContentService {
       readingTime: 0,
       tags: content.tags || [],
       category: content.category,
-      processingStatus: 'queued', // Default for videos
       ...additionalData
     };
+
+    // Only set processingStatus for content types that need background processing
+    if (type === 'video' || type === 'document') {
+      metadata.processingStatus = metadata.processingStatus || 'queued';
+    } else if (type === 'article') {
+      // Articles don't need background processing
+      metadata.processingStatus = 'completed';
+    }
 
     if (type === 'article' && content.content) {
       metadata.wordCount = content.content.split(/\s+/).length;
@@ -295,7 +302,11 @@ class ContentService {
       // Generate updated metadata if content is being updated
       let metadata = existingContent.metadata || {};
       if (updateData.body && existingContent.type === 'article') {
-        metadata = this.generateContentMetadata({ content: updateData.body }, 'article');
+        const newMetadata = this.generateContentMetadata(
+          { content: updateData.body, tags: updateData.tags || existingContent.tags, category: updateData.category || existingContent.category }, 
+          'article'
+        );
+        metadata = { ...metadata, ...newMetadata };
       }
 
       // If metadata is provided in updateData, merge it
