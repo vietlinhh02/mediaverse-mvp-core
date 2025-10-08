@@ -889,7 +889,7 @@ class ArticleController {
     });
 
     // Remove 'article-' prefix from id to match database UUID format
-    const transformedHits = searchResults.hits.map(hit => ({
+    const transformedHits = searchResults.hits.map((hit) => ({
       ...hit,
       id: hit.id.replace(/^article-/, '')
     }));

@@ -145,7 +145,81 @@ const articleUpdateSchema = Joi.object({
     })
 });
 
-// Video upload validation schema
+// Video initialization validation schema (for async upload)
+const videoInitSchema = Joi.object({
+  title: Joi.string().min(5).max(200).trim()
+    .required()
+    .messages({
+      'string.min': 'Video title must be at least 5 characters long',
+      'string.max': 'Video title cannot exceed 200 characters',
+      'string.empty': 'Video title is required',
+      'any.required': 'Video title is required'
+    }),
+  description: Joi.string().max(500).allow('').trim()
+    .messages({
+      'string.max': 'Video description cannot exceed 500 characters'
+    }),
+  category: Joi.string().valid(
+    'technology',
+    'tech',
+    'education',
+    'entertainment',
+    'business',
+    'health',
+    'lifestyle',
+    'science',
+    'sports',
+    'politics',
+    'travel',
+    'other'
+  ).required().messages({
+    'any.only': 'Category must be one of: technology, tech, education, entertainment, business, health, lifestyle, science, sports, politics, travel, other',
+    'any.required': 'Category is required'
+  }),
+  tags: Joi.alternatives().try(
+    Joi.string().max(500).trim().custom((value, helpers) => {
+      // Split string by comma and trim each tag
+      const tags = value.split(',').map((tag) => tag.trim()).filter((tag) => tag.length > 0);
+      // Validate each tag
+      for (const tag of tags) {
+        if (tag.length > 50) {
+          return helpers.error('string.max');
+        }
+      }
+      if (tags.length > 10) {
+        return helpers.error('array.max');
+      }
+      return tags;
+    })
+      .messages({
+        'string.max': 'Each tag cannot exceed 50 characters',
+        'array.max': 'Maximum 10 tags allowed'
+      }),
+    Joi.array().items(
+      Joi.string().max(50).trim()
+    ).max(10).messages({
+      'array.max': 'Maximum 10 tags allowed',
+      'string.max': 'Each tag cannot exceed 50 characters'
+    })
+  ).default([]),
+  status: Joi.string().valid('draft', 'published').default('draft')
+    .messages({
+      'any.only': 'Status must be either draft or published'
+    }),
+  visibility: Joi.string().valid('public', 'private', 'unlisted').default('public')
+    .messages({
+      'any.only': 'Visibility must be one of: public, private, unlisted'
+    }),
+  channelId: Joi.string().optional().allow(null, '').messages({
+    'string.base': 'Channel ID must be a string'
+  }),
+  useAdaptiveStorage: Joi.boolean().default(true)
+    .messages({
+      'boolean.base': 'Use adaptive storage must be a boolean value'
+    })
+});
+
+// Legacy video upload validation schema (deprecated)
 const videoUploadSchema = Joi.object({
   title: Joi.string().min(5).max(200).trim()
     .required()
@@ -298,7 +372,8 @@ const communityPostQuerySchema = Joi.object({
 // Comment query validation schema
 const commentQuerySchema = Joi.object({
   page: Joi.number().integer().min(1).default(1),
-  limit: Joi.number().integer().min(1).max(100).default(20),
+  limit: Joi.number().integer().min(1).max(100)
+    .default(20),
   sortBy: Joi.string().valid('createdAt', 'likes', 'replies').default('createdAt'),
   sortOrder: Joi.string().valid('asc', 'desc').default('desc'),
   includeReplies: Joi.boolean().default(false)
@@ -493,8 +568,17 @@ const feedSchema = Joi.object({
       'any.only': 'Type must be one of: article, video, document'
     }),
   category: Joi.string().valid(
-    'technology', 'education', 'entertainment', 'business',
-    'health', 'lifestyle', 'science', 'sports', 'politics', 'travel', 'other'
+    'technology',
+    'education',
+    'entertainment',
+    'business',
+    'health',
+    'lifestyle',
+    'science',
+    'sports',
+    'politics',
+    'travel',
+    'other'
   ).optional()
     .messages({
       'string.base': 'Category must be a string',
@@ -583,14 +667,16 @@ const extractTextSchema = Joi.object({
 
 // Generate download link validation schema
 const generateDownloadLinkSchema = Joi.object({
-  expiresIn: Joi.number().integer().min(60).max(86400).default(3600)
+  expiresIn: Joi.number().integer().min(60).max(86400)
+    .default(3600)
     .messages({
       'number.base': 'expiresIn must be a number',
       'number.integer': 'expiresIn must be an integer',
       'number.min': 'expiresIn must be at least 60 seconds',
       'number.max': 'expiresIn cannot exceed 86400 seconds (24 hours)'
     }),
-  maxDownloads: Joi.number().integer().min(1).max(100).default(5)
+  maxDownloads: Joi.number().integer().min(1).max(100)
+    .default(5)
     .messages({
       'number.base': 'maxDownloads must be a number',
       'number.integer': 'maxDownloads must be an integer',
@@ -606,7 +692,8 @@ const generateDownloadLinkSchema = Joi.object({
 
 // Bulk move documents validation schema
 const bulkMoveDocumentsSchema = Joi.object({
-  documentIds: Joi.array().items(Joi.string()).min(1).max(50).required()
+  documentIds: Joi.array().items(Joi.string()).min(1).max(50)
+    .required()
     .messages({
       'array.base': 'documentIds must be an array',
       'array.min': 'At least one document ID is required',
@@ -621,7 +708,8 @@ const bulkMoveDocumentsSchema = Joi.object({
 
 // Folder creation validation schema
 const createFolderSchema = Joi.object({
-  name: Joi.string().min(1).max(100).trim().required()
+  name: Joi.string().min(1).max(100).trim()
+    .required()
     .messages({
       'string.empty': 'Folder name is required',
       'string.min': 'Folder name must be at least 1 character',
@@ -654,7 +742,8 @@ const getFoldersSchema = Joi.object({
       'number.integer': 'Page must be an integer',
       'number.min': 'Page must be at least 1'
     }),
-  limit: Joi.number().integer().min(1).max(50).default(20)
+  limit: Joi.number().integer().min(1).max(50)
+    .default(20)
     .messages({
       'number.base': 'Limit must be a number',
       'number.integer': 'Limit must be an integer',
@@ -671,7 +760,8 @@ const folderDocumentsSchema = Joi.object({
       'number.integer': 'Page must be an integer',
       'number.min': 'Page must be at least 1'
     }),
-  limit: Joi.number().integer().min(1).max(50).default(20)
+  limit: Joi.number().integer().min(1).max(50)
+    .default(20)
     .messages({
       'number.base': 'Limit must be a number',
       'number.integer': 'Limit must be an integer',
@@ -714,6 +804,7 @@ const validate = (schema, property = 'body') => (req, res, next) => {
 // Export validation middleware functions
 const validateArticleCreate = validate(articleCreateSchema);
 const validateArticleUpdate = validate(articleUpdateSchema);
+const validateVideoInit = validate(videoInitSchema);
 const validateVideoUpload = validate(videoUploadSchema);
 const validateDocumentUpload = validate(documentUploadSchema);
 const validateCommentCreate = validate(commentCreateSchema);
@@ -740,6 +831,7 @@ module.exports = {
   // Schemas
   articleCreateSchema,
   articleUpdateSchema,
+  videoInitSchema,
   videoUploadSchema,
   documentUploadSchema,
   commentCreateSchema,
@@ -764,6 +856,7 @@ module.exports = {
   validate,
   validateArticleCreate,
   validateArticleUpdate,
+  validateVideoInit,
   validateVideoUpload,
   validateDocumentUpload,
   validateCommentCreate,

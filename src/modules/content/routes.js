@@ -5,7 +5,6 @@ const router = express.Router();
 
 // Import controllers
 const ArticleController = require('./articleController');
-const VideoController = require('./videoController');
 const { DocumentController, FolderController } = require('./documentController');
 const FeedController = require('./feedController');
 const InteractionController = require('./interactionController');
@@ -19,7 +18,6 @@ const { trackLike, trackComment } = require('../../middleware/trackInteraction')
 const {
   validateArticleCreate,
   validateArticleUpdate,
-  validateVideoUpload,
   validateDocumentUpload,
   validateCommentCreate,
   validateCommentUpdate,
@@ -152,34 +150,23 @@ router.get(
 );
 
 // Video routes
-router.post(
+const VideoController = require('./videoController');
+const { optionalAuth, requireModerator } = require('../../middleware/auth');
+
+// Listing
+router.get(
   '/videos',
-  authenticateToken,
-  requireActiveUser,
-  uploadMiddleware.singleVideo,
-  handleUploadError,
-  validateVideoUpload,
-  VideoController.uploadVideo
+  VideoController.getAllVideos
 );
 
-router.get(
-  '/videos/search',
-  validateContentSearch,
-  VideoController.searchVideos
-);
-
-router.get(
-  '/videos/category/:category',
-  validateCategoryContent,
-  VideoController.getVideosByCategory
-);
-
+// Get
 router.get(
   '/videos/:id',
   validateContentId,
   VideoController.getVideo
 );
 
+// Update
 router.put(
   '/videos/:id',
   authenticateToken,
@@ -188,6 +175,7 @@ router.put(
   VideoController.updateVideo
 );
 
+// Delete
 router.delete(
   '/videos/:id',
   authenticateToken,
@@ -196,79 +184,71 @@ router.delete(
   VideoController.deleteVideo
 );
 
-router.post(
-  '/videos/:id/publish',
-  authenticateToken,
-  requireActiveUser,
-  validateContentId,
-  VideoController.publishVideo
-);
-
-router.get(
-  '/users/:userId/videos',
-  VideoController.getUserVideos
-);
-
-router.get(
-  '/admin/queue-status',
-  authenticateToken,
-  VideoController.getQueueStatus
-);
-
+// Stream
 router.get(
   '/videos/:id/stream',
+  optionalAuth,
   validateContentId,
-  VideoController.streamVideo
+  VideoController.stream
 );
 
+// Reprocess (admin/moderator)
 router.post(
   '/videos/:id/reprocess',
   authenticateToken,
-  requireActiveUser,
+  requireModerator,
   validateContentId,
-  VideoController.reprocessVideo
+  VideoController.reprocess
 );
 
+// Queue status (admin/moderator)
+router.get(
+  '/admin/queue-status',
+  authenticateToken,
+  requireModerator,
+  VideoController.queueStatus
+);
+
+// Stats
 router.get(
   '/videos/:id/stats',
   authenticateToken,
   requireActiveUser,
   validateContentId,
-  VideoController.getVideoStats
+  VideoController.stats
 );
 
-router.put(
-  '/videos/bulk-update',
-  authenticateToken,
-  requireActiveUser,
-  VideoController.bulkUpdateVideos
-);
-
+// Placeholder transcript endpoint
 router.get(
   '/videos/:id/transcript',
   validateContentId,
-  VideoController.getVideoTranscript
+  async (req, res) => res.json({ success: true, data: { videoId: req.params.id, transcript: null, status: 'not_available' } })
 );
 
+// Publish video
+router.post(
+  '/videos/:id/publish',
+  authenticateToken,
+  requireActiveUser,
+  validateContentId,
+  VideoController.publish
+);
+
+// Update video thumbnail
 router.put(
   '/videos/:id/thumbnail',
   authenticateToken,
   requireActiveUser,
   validateContentId,
-  VideoController.updateVideoThumbnail
+  VideoController.updateThumbnail
 );
 
-router.get(
-  '/videos/:id/recommendations',
-  validateContentId,
-  VideoController.getVideoRecommendations
-);
-
+// Upload status for current user
 router.get(
   '/videos/upload-status',
   authenticateToken,
   requireActiveUser,
-  VideoController.getUploadStatus
+  VideoController.uploadStatus
 );
 
 // Document routes
@@ -636,5 +616,7 @@ router.get(
   validateCommunityPostQuery,
   InteractionController.getCommunityPosts
 );
+
+// Admin routes removed - will be rebuilt from scratch
 
 module.exports = router;

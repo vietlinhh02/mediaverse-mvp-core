@@ -64,14 +64,37 @@ app.use(conditionalRateLimit);
 // Special rate limiting for auth endpoints
 app.use('/api/auth', authRateLimit);
 
-// Body parsing middleware
+// Body parsing middleware (skip for multipart/form-data to allow multer to handle it)
+app.use((req, res, next) => {
+  // Skip body parsers for multipart/form-data
+  if (req.headers['content-type']?.startsWith('multipart/form-data')) {
+    return next();
+  }
+  next();
+});
+
 app.use(express.json({ limit: '500mb' }));
 app.use(express.urlencoded({ extended: true, limit: '500mb' }));
 
-// Static file serving for uploads
+// Static file serving for uploads (with CORS tailored for HLS from various dev origins)
+const uploadsCorsOrigins = (process.env.UPLOADS_CORS_ORIGINS || 'http://localhost:3000,http://127.0.0.1:5500,http://localhost:5500')
+  .split(',')
+  .map((o) => o.trim())
+  .filter(Boolean);
+
 app.use('/uploads', (req, res, next) => {
-  res.header('Access-Control-Allow-Origin', 'http://localhost:3000');
-  res.header('Cross-Origin-Resource-Policy', 'cross-origin');
+  const { origin } = req.headers;
+  if (origin && uploadsCorsOrigins.includes(origin)) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+  }
+  res.setHeader('Vary', 'Origin');
+  res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Range, Content-Type, Origin, Accept');
+  // Handle preflight for segment requests if any tooling uses it
+  if (req.method === 'OPTIONS') {
+    return res.status(204).end();
+  }
   next();
 }, express.static(path.join(__dirname, '../uploads')));
 
@@ -80,6 +103,7 @@ app.use(passport.initialize());
 
 // Initialize OAuth Controller (sets up OAuth strategies)
 const OAuthController = require('./modules/auth/oauthController');
+
 new OAuthController(); // eslint-disable-line no-new
 
 // Swagger API Documentation
@@ -101,12 +125,9 @@ const {
 const { initializeRedis } = require('./config/redis');
 const { connectWithRetry } = require('./config/database');
 const { initializeDatabase, verifyDatabaseSchema } = require('./utils/dbInit');
-const { setupWorkers } = require('./jobs/worker');
-const { setupNotificationWorkers } = require('./jobs/notificationWorker');
-const { setupAnalyticsWorker } = require('./jobs/analyticsQueue');
-const { setupReportingWorker } = require('./jobs/reportingWorker');
-const { setupDocumentWorker } = require('./jobs/documentWorker');
+// Job workers removed - will be rebuilt from scratch
 const searchService = require('./services/searchService'); // Import the search service
+// MinIO client available via src/config/minio.js
 
 /**
  * @swagger
@@ -275,11 +296,12 @@ const authRoutes = require('./modules/auth/authRoutes');
 const userRoutes = require('./modules/users/routes');
 const contentRoutes = require('./modules/content/routes');
 const recommendationRoutes = require('./modules/recommendations/routes');
-const mediaRoutes = require('./modules/media/routes/mediaRoutes');
+// Media routes removed - will be rebuilt from scratch
 const notificationRoutes = require('./modules/notifications/routes');
 const moderationRoutes = require('./modules/moderation/routes/moderationRoutes.js');
 const analyticsRoutes = require('./modules/analytics/routes/analyticsRoutes');
 const playlistRoutes = require('./modules/content/playlistRoutes'); // Import playlist routes
+const uploadRoutes = require('./modules/uploads/routes');
 
 const WebSocketManager = require('./modules/notifications/websocket/webSocketManager');
 const realtimeService = require('./modules/analytics/services/realtimeService');
@@ -288,11 +310,12 @@ app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/content', contentRoutes);
 app.use('/api/recommendations', recommendationRoutes);
-app.use('/api/media', mediaRoutes);
+// Media routes removed - will be rebuilt from scratch
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/moderation', moderationRoutes);
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/playlists', playlistRoutes); // Mount playlist routes
+app.use('/api/uploads', uploadRoutes); // Mount chunk upload routes
 
 // Initialize WebSocket server for real-time notifications
 const webSocketManager = new WebSocketManager();
@@ -303,10 +326,7 @@ const { setWebSocketManager } = require('./modules/notifications/services/notifi
 
 setWebSocketManager(webSocketManager);
 
-// Initialize scheduler for periodic jobs
-const scheduler = require('./jobs/scheduler');
-
-scheduler.init();
+// Scheduler removed - will be rebuilt from scratch
 
 // 404 handler (must come before error handler)
 app.use('*', notFoundHandler);
@@ -349,6 +369,8 @@ const initializeServices = async () => {
     // Initialize Redis connections
     const redisInitialized = await initializeRedis();
 
+    console.log('MinIO S3-compatible storage enabled');
+
     // Initialize database connection (if available)
 
     let dbAvailable = false;
@@ -367,14 +389,43 @@ const initializeServices = async () => {
     console.log('Services initialized successfully');
     console.log(`Redis: ${redisInitialized ? 'true' : 'false'} | Database: ${dbAvailable ? 'true' : 'false'}`);
 
-    // Start background job workers
+    // Start background job workers (Redis-based loop)
     if (redisInitialized) {
-      setupWorkers();
-      setupNotificationWorkers();
-      setupAnalyticsWorker();
-      setupReportingWorker();
-      setupDocumentWorker();
-      console.log('Background job workers started');
+      try {
+        const { processJob } = require('./jobs/workers/videoProcessing.worker');
+        const { queue } = require('./config/redis');
+        const { VIDEO_QUEUE_NAME } = require('./jobs/queues/videoQueue');
+        const concurrency = Number(process.env.VIDEO_WORKER_CONCURRENCY || 2);
+
+        for (let i = 0; i < concurrency; i += 1) {
+          (async function workerLoop() {
+            console.log(`Video processing worker #${i + 1} started...`);
+            // eslint-disable-next-line no-constant-condition
+            while (true) {
+              try {
+                // Use Redis long polling to wait for jobs
+                const job = await queue.popBlocking(VIDEO_QUEUE_NAME, 30); // 30-second timeout
+
+                if (job) {
+                  console.log(`Worker #${i + 1} picked up job:`, job.id);
+                  console.log(`Job payload:`, job.payload);
+                  await processJob(job);
+                } else {
+                  console.log(`Worker #${i + 1} timeout - no jobs available`);
+                }
+                // If job is null, the timeout was reached, and the loop will restart
+              } catch (err) {
+                console.error(`Video worker #${i + 1} error:`, err.message || err);
+                // Wait a bit before retrying to prevent fast error loops
+                await new Promise((r) => setTimeout(r, 5000));
+              }
+            }
+          }());
+        }
+        console.log(`Video processing workers started (concurrency=${concurrency})`);
+      } catch (e) {
+        console.error('Failed to start video worker:', e.message);
+      }
     }
 
     return true;
@@ -403,7 +454,7 @@ if (require.main === module) {
     console.log(' WebSocket server initialized for real-time analytics');
 
     // Start scheduled jobs
-    scheduler.start();
+    // Scheduler removed - will be rebuilt from scratch
   }).catch((error) => {
     console.error(' Failed to start server:', error);
     process.exit(1);

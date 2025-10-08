@@ -7,13 +7,13 @@ class ContentService {
   // Helper method to transform content response (map body to content for API)
   static transformContentResponse(content) {
     if (!content) return null;
-    
+
     // Map body field to content for API response
     if (content.body !== undefined) {
       content.content = content.body;
       delete content.body;
     }
-    
+
     return content;
   }
 
@@ -153,7 +153,11 @@ class ContentService {
         duration: videoData.duration || 0,
         resolution: videoData.resolution || 'unknown',
         fileSize: videoData.fileSize || 0,
-        videoUrl: videoData.videoUrl
+        videoUrl: videoData.videoUrl,
+        // Use upload and processing status from videoData if provided
+        uploadStatus: videoData.uploadStatus || 'pending',
+        processingStatus: videoData.processingStatus || 'queued',
+        useAdaptiveStorage: videoData.useAdaptiveStorage
       });
 
       const content = await prisma.content.create({
@@ -299,26 +303,58 @@ class ContentService {
         delete updateData.content;
       }
 
+      // Handle video-specific fields that should go into metadata FIRST
+      // This must be done before any other processing
+      const videoFields = {};
+      if (updateData.filename) videoFields.filename = updateData.filename;
+      if (updateData.originalName) videoFields.originalName = updateData.originalName;
+      if (updateData.mimetype) videoFields.mimetype = updateData.mimetype;
+      if (updateData.fileSize) videoFields.fileSize = updateData.fileSize;
+      if (updateData.uploadPath) videoFields.uploadPath = updateData.uploadPath;
+      if (updateData.videoUrl) videoFields.videoUrl = updateData.videoUrl;
+
+      // Remove video-specific fields from updateData immediately
+      delete updateData.filename;
+      delete updateData.originalName;
+      delete updateData.mimetype;
+      delete updateData.fileSize;
+      delete updateData.uploadPath;
+      delete updateData.videoUrl;
+
       // Generate updated metadata if content is being updated
       let metadata = existingContent.metadata || {};
       if (updateData.body && existingContent.type === 'article') {
         const newMetadata = this.generateContentMetadata(
-          { content: updateData.body, tags: updateData.tags || existingContent.tags, category: updateData.category || existingContent.category }, 
+          { content: updateData.body, tags: updateData.tags || existingContent.tags, category: updateData.category || existingContent.category },
           'article'
         );
         metadata = { ...metadata, ...newMetadata };
       }
 
       // If metadata is provided in updateData, merge it
-      if (updateData.metadata) {
-        metadata = { ...metadata, ...updateData.metadata };
+      if (updateData.metadata || Object.keys(videoFields).length > 0) {
+        metadata = { ...metadata, ...updateData.metadata, ...videoFields };
         delete updateData.metadata; // Remove metadata from updateData to avoid conflict
+      }
+
+      // Filter updateData to only include fields that exist in the schema
+      const allowedFields = [
+        'type', 'title', 'body', 'description', 'featuredImage', 'status', 'visibility',
+        'category', 'tags', 'stats', 'uploadStatus', 'processingStatus', 'views',
+        'likesCount', 'commentsCount', 'trendingScore', 'relevanceScore', 'publishedAt'
+      ];
+
+      const filteredUpdateData = {};
+      for (const field of allowedFields) {
+        if (updateData[field] !== undefined) {
+          filteredUpdateData[field] = updateData[field];
+        }
       }
 
       const updatedContent = await prisma.content.update({
         where: { id: contentId },
         data: {
-          ...updateData,
+          ...filteredUpdateData,
           metadata,
           updatedAt: new Date()
         },
@@ -563,7 +599,7 @@ class ContentService {
       ]);
 
       return {
-        contents: contents.map(content => this.transformContentResponse(content)),
+        contents: contents.map((content) => this.transformContentResponse(content)),
         pagination: {
           page,
           limit,
@@ -580,7 +616,9 @@ class ContentService {
   // Get personalized feed
   static async getPersonalizedFeed(userId, feedParams) {
     try {
-      const { page = 1, limit = 20, useSmartAlgorithm = true, type, category } = feedParams;
+      const {
+        page = 1, limit = 20, useSmartAlgorithm = true, type, category
+      } = feedParams;
       const skip = (page - 1) * limit;
 
       console.log('🔍 [PersonalizedFeed] feedParams:', feedParams);
@@ -600,11 +638,11 @@ class ContentService {
       // Use smart recommendation algorithm (Facebook/TikTok style)
       if (useSmartAlgorithm) {
         const SmartRecommendationService = require('../../services/smartRecommendationService');
-        
+
         // Get user interest profile from behavior
         const profile = await SmartRecommendationService.getUserInterestProfile(userId);
         const mixRatio = SmartRecommendationService.getFeedMixRatio(profile.totalInteractions);
-        
+
         const personalizedCount = Math.ceil(limit * mixRatio.personalized);
         const trendingCount = Math.ceil(limit * mixRatio.trending);
         const diverseCount = limit - personalizedCount - trendingCount;
@@ -615,14 +653,14 @@ class ContentService {
         // 1. Get personalized content (based on behavior)
         if (personalizedCount > 0 && profile.totalInteractions > 0) {
           const personalizedQuery = SmartRecommendationService.buildPersonalizedQuery(profile);
-          
+
           if (personalizedQuery.length > 0) {
             const whereClause = {
               ...baseFilter,
               OR: personalizedQuery
             };
             console.log('🔍 [Personalized Query] where:', JSON.stringify(whereClause, null, 2));
-            
+
             const personalized = await prisma.content.findMany({
               where: whereClause,
               include: {
@@ -655,7 +693,7 @@ class ContentService {
               take: personalizedCount * 2
             });
 
-            personalized.forEach(content => {
+            personalized.forEach((content) => {
               if (!usedIds.has(content.id) && contentPool.length < personalizedCount) {
                 contentPool.push({ ...content, feedSource: 'personalized' });
                 usedIds.add(content.id);
@@ -708,7 +746,7 @@ class ContentService {
             take: trendingCount
           });
 
-          trending.forEach(content => {
+          trending.forEach((content) => {
             if (!usedIds.has(content.id)) {
               contentPool.push({ ...content, feedSource: 'trending' });
               usedIds.add(content.id);
@@ -724,7 +762,7 @@ class ContentService {
           ];
 
           const unexploredCategories = allCategories.filter(
-            cat => !profile.categories.includes(cat)
+            (cat) => !profile.categories.includes(cat)
           );
 
           if (unexploredCategories.length > 0) {
@@ -764,7 +802,7 @@ class ContentService {
               take: diverseCount
             });
 
-            diverse.forEach(content => {
+            diverse.forEach((content) => {
               if (!usedIds.has(content.id)) {
                 contentPool.push({ ...content, feedSource: 'diverse' });
                 usedIds.add(content.id);
@@ -778,7 +816,7 @@ class ContentService {
         const paginatedContent = shuffled.slice(skip, skip + limit);
 
         return {
-          contents: paginatedContent.map(content => this.transformContentResponse(content)),
+          contents: paginatedContent.map((content) => this.transformContentResponse(content)),
           pagination: {
             page,
             limit,
@@ -786,9 +824,9 @@ class ContentService {
             pages: Math.ceil(shuffled.length / limit)
           },
           feedMix: {
-            personalized: contentPool.filter(c => c.feedSource === 'personalized').length,
-            trending: contentPool.filter(c => c.feedSource === 'trending').length,
-            diverse: contentPool.filter(c => c.feedSource === 'diverse').length
+            personalized: contentPool.filter((c) => c.feedSource === 'personalized').length,
+            trending: contentPool.filter((c) => c.feedSource === 'trending').length,
+            diverse: contentPool.filter((c) => c.feedSource === 'diverse').length
           },
           userEngagementLevel: profile.totalInteractions
         };
@@ -873,7 +911,7 @@ class ContentService {
       ]);
 
       return {
-        contents: contents.map(content => this.transformContentResponse(content)),
+        contents: contents.map((content) => this.transformContentResponse(content)),
         pagination: {
           page,
           limit,
@@ -962,7 +1000,7 @@ class ContentService {
       const trendingContent = scoredContents
         .sort((a, b) => b.trendingScore - a.trendingScore)
         .slice(0, 20)
-        .map(content => this.transformContentResponse(content));
+        .map((content) => this.transformContentResponse(content));
 
       const result = { contents: trendingContent };
 
@@ -1029,7 +1067,7 @@ class ContentService {
       ]);
 
       return {
-        contents: contents.map(content => this.transformContentResponse(content)),
+        contents: contents.map((content) => this.transformContentResponse(content)),
         pagination: {
           page,
           limit,

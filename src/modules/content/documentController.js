@@ -98,7 +98,7 @@ const ContentService = require('./contentService');
 const { asyncHandler, AppError } = require('../../middleware/errorHandler');
 const { authenticateToken, requireActiveUser } = require('../../middleware/auth');
 const { uploadMiddleware, validateUploadedFile, handleUploadError } = require('../../middleware/upload');
-const { documentQueue } = require('../../jobs/documentQueue');
+// Document queue removed - will be rebuilt from scratch
 const fs = require('fs').promises;
 const searchService = require('../../services/searchService'); // Import the search service
 
@@ -258,15 +258,8 @@ class DocumentController {
         jobType: 'document_processing'
       };
 
-      // Add job to Bull queue
-      await documentQueue.add(processingJob, {
-        priority: 1,
-        attempts: 3,
-        backoff: {
-          type: 'exponential',
-          delay: 5000
-        }
-      });
+      // Document queue removed - will be rebuilt from scratch
+      console.log('Document processing queue disabled - will be rebuilt');
 
       console.log(`Document processing queued for document ID: ${documentId}`);
     } catch (error) {
@@ -365,7 +358,9 @@ class DocumentController {
    *         description: List of documents
    */
   static getAllDocuments = asyncHandler(async (req, res) => {
-    const { page = 1, limit = 20, category, sortBy = 'recent' } = req.query;
+    const {
+      page = 1, limit = 20, category, sortBy = 'recent'
+    } = req.query;
     const skip = (page - 1) * limit;
 
     const where = {
@@ -380,8 +375,8 @@ class DocumentController {
 
     const orderBy = sortBy === 'popular' ? { views: 'desc' }
       : sortBy === 'title' ? { title: 'asc' }
-      : sortBy === 'size' ? [{ metadata: { path: ['fileSize'] } }]
-      : { createdAt: 'desc' };
+        : sortBy === 'size' ? [{ metadata: { path: ['fileSize'] } }]
+          : { createdAt: 'desc' };
 
     const [documents, total] = await Promise.all([
       require('../../config/database').prisma.content.findMany({
@@ -750,7 +745,7 @@ class DocumentController {
     });
 
     // Remove 'document-' prefix from id to match database UUID format
-    const transformedHits = searchResults.hits.map(hit => ({
+    const transformedHits = searchResults.hits.map((hit) => ({
       ...hit,
       id: hit.id.replace(/^document-/, '')
     }));
@@ -833,9 +828,9 @@ class DocumentController {
    *         name: format
    *         schema:
    *           type: string
-   *           enum: [text, html]
+   *           enum: [text, html, pdf, file]
    *           default: text
-   *         description: Preview format
+   *         description: Preview format (pdf/file returns actual file)
    *     responses:
    *       200:
    *         description: Document preview retrieved successfully
@@ -853,17 +848,43 @@ class DocumentController {
     }
 
     // Check if user has access to this document
-    if (document.visibility === 'private' && document.author.id !== req.user?.userId) {
-      const user = await require('../../config/database').prisma.user.findUnique({
+    if (document.visibility === 'private' && (!req.user || document.author.id !== req.user?.userId)) {
+      const user = req.user ? await require('../../config/database').prisma.user.findUnique({
         where: { id: req.user.userId },
         select: { role: true }
-      });
+      }) : null;
 
       if (!user || !['admin', 'moderator'].includes(user.role)) {
         throw new AppError('Unauthorized to view this document', 403, 'UNAUTHORIZED');
       }
     }
 
+    // If format is 'pdf' or 'file', serve the actual file
+    if (format === 'pdf' || format === 'file') {
+      const filePath = document.metadata?.documentUrl;
+
+      if (!filePath) {
+        throw new AppError('Document file not found', 404, 'FILE_NOT_FOUND');
+      }
+
+      const fullPath = path.join(__dirname, '../../..', filePath);
+      const fileExists = await fs.access(fullPath).then(() => true).catch(() => false);
+
+      if (!fileExists) {
+        throw new AppError('Document file not available', 404, 'FILE_NOT_AVAILABLE');
+      }
+
+      // Set headers for inline display (not download)
+      const mimetype = document.metadata?.mimetype || 'application/pdf';
+      res.setHeader('Content-Type', mimetype);
+      res.setHeader('Content-Disposition', 'inline'); // Display in browser instead of download
+
+      // Stream file to response
+      const fileStream = require('fs').createReadStream(fullPath);
+      return fileStream.pipe(res);
+    }
+
+    // Return JSON metadata for text/html format
     const previewData = {
       documentId: document.id,
       title: document.title,
@@ -874,6 +895,9 @@ class DocumentController {
       previewText: document.metadata?.previewText || null,
       thumbnailUrl: document.featuredImage || null,
       format,
+      // URL to get PDF file directly for embedding
+      pdfUrl: `/api/content/documents/${id}/preview?format=pdf`,
+      fileUrl: `/api/content/documents/${id}/preview?format=file`,
       canDownload: document.visibility === 'public'
                    || document.author.id === req.user?.userId
                    || (req.user?.role && ['admin', 'moderator'].includes(req.user.role))
@@ -936,7 +960,7 @@ class DocumentController {
 
     // Get file path from metadata
     const filePath = document.metadata?.documentUrl;
-    
+
     if (!filePath) {
       throw new AppError('Document file not found', 404, 'FILE_NOT_FOUND');
     }
@@ -953,7 +977,7 @@ class DocumentController {
     const filename = document.metadata?.originalName || `${document.title}.${document.metadata?.extension || 'pdf'}`;
     res.setHeader('Content-Type', document.metadata?.mimetype || 'application/octet-stream');
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-    
+
     // Stream file to response
     const fileStream = require('fs').createReadStream(fullPath);
     fileStream.pipe(res);
@@ -1240,7 +1264,7 @@ class DocumentController {
     }
 
     const textContent = document.metadata?.textContent || '';
-    const wordCount = textContent.split(/\s+/).filter(w => w.length > 0).length;
+    const wordCount = textContent.split(/\s+/).filter((w) => w.length > 0).length;
 
     const responseData = {
       documentId: document.id,
@@ -1394,7 +1418,7 @@ class DocumentController {
     for (const docId of documentIds) {
       try {
         const document = await ContentService.getContent(docId, false);
-        
+
         // Check ownership
         if (document.author.id !== userId && !['admin', 'moderator'].includes(req.user.role)) {
           results.failed++;
@@ -1470,7 +1494,9 @@ class FolderController {
    *         description: Folder created successfully
    */
   static createFolder = asyncHandler(async (req, res) => {
-    const { name, description, parentId, visibility = 'private' } = req.body;
+    const {
+      name, description, parentId, visibility = 'private'
+    } = req.body;
     const { userId } = req.user;
 
     // Validate folder name
