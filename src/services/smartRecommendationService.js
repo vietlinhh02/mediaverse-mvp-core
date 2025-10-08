@@ -16,7 +16,7 @@ class SmartRecommendationService {
   static async getUserInterestProfile(userId) {
     const cacheKey = `user:${userId}:interest-profile`;
     const cached = await cache.get(cacheKey);
-    
+
     if (cached) {
       return cached;
     }
@@ -72,9 +72,9 @@ class SmartRecommendationService {
 
     // Weight different interactions
     const WEIGHTS = {
-      like: 3,      // Likes are strong signals
-      comment: 5,   // Comments are very strong signals
-      view: 1       // Views are weak signals
+      like: 3, // Likes are strong signals
+      comment: 5, // Comments are very strong signals
+      view: 1 // Views are weak signals
     };
 
     // Process likes
@@ -83,8 +83,8 @@ class SmartRecommendationService {
         categoryScores[content.category] = (categoryScores[content.category] || 0) + WEIGHTS.like;
         contentTypeScores[content.type] = (contentTypeScores[content.type] || 0) + WEIGHTS.like;
         authorScores[content.authorId] = (authorScores[content.authorId] || 0) + WEIGHTS.like;
-        
-        content.tags?.forEach(tag => {
+
+        content.tags?.forEach((tag) => {
           tagScores[tag] = (tagScores[tag] || 0) + WEIGHTS.like;
         });
       }
@@ -96,8 +96,8 @@ class SmartRecommendationService {
         categoryScores[content.category] = (categoryScores[content.category] || 0) + WEIGHTS.comment;
         contentTypeScores[content.type] = (contentTypeScores[content.type] || 0) + WEIGHTS.comment;
         authorScores[content.authorId] = (authorScores[content.authorId] || 0) + WEIGHTS.comment;
-        
-        content.tags?.forEach(tag => {
+
+        content.tags?.forEach((tag) => {
           tagScores[tag] = (tagScores[tag] || 0) + WEIGHTS.comment;
         });
       }
@@ -297,7 +297,7 @@ class SmartRecommendationService {
 
     // Calculate mix percentages based on user engagement level
     let mixRatio;
-    
+
     if (interestProfile.totalInteractions === 0) {
       // New user: 100% trending/popular
       mixRatio = { trending: 0.7, diverse: 0.3, personalized: 0 };
@@ -323,7 +323,7 @@ class SmartRecommendationService {
         limit: personalizedCount * 2 // Get extra to account for filtering
       });
 
-      personalized.forEach(content => {
+      personalized.forEach((content) => {
         if (!usedIds.has(content.id) && contentPool.length < personalizedCount) {
           contentPool.push({ ...content, feedSource: 'personalized' });
           usedIds.add(content.id);
@@ -371,7 +371,7 @@ class SmartRecommendationService {
         take: trendingCount
       });
 
-      trending.forEach(content => {
+      trending.forEach((content) => {
         if (!usedIds.has(content.id)) {
           contentPool.push({ ...content, feedSource: 'trending' });
           usedIds.add(content.id);
@@ -389,7 +389,7 @@ class SmartRecommendationService {
 
       // Find categories user hasn't engaged with
       const unexploredCategories = allCategories.filter(
-        cat => !interestProfile.categories.includes(cat)
+        (cat) => !interestProfile.categories.includes(cat)
       );
 
       if (unexploredCategories.length > 0) {
@@ -424,7 +424,7 @@ class SmartRecommendationService {
           take: diverseCount
         });
 
-        diverse.forEach(content => {
+        diverse.forEach((content) => {
           if (!usedIds.has(content.id)) {
             contentPool.push({ ...content, feedSource: 'diverse' });
             usedIds.add(content.id);
@@ -448,9 +448,9 @@ class SmartRecommendationService {
         pages: Math.ceil(shuffled.length / limit)
       },
       feedMix: {
-        personalized: contentPool.filter(c => c.feedSource === 'personalized').length,
-        trending: contentPool.filter(c => c.feedSource === 'trending').length,
-        diverse: contentPool.filter(c => c.feedSource === 'diverse').length
+        personalized: contentPool.filter((c) => c.feedSource === 'personalized').length,
+        trending: contentPool.filter((c) => c.feedSource === 'trending').length,
+        diverse: contentPool.filter((c) => c.feedSource === 'diverse').length
       },
       userEngagementLevel: interestProfile.totalInteractions
     };
@@ -481,11 +481,10 @@ class SmartRecommendationService {
   static getFeedMixRatio(totalInteractions) {
     if (totalInteractions === 0) {
       return { personalized: 0, trending: 0.7, diverse: 0.3 };
-    } else if (totalInteractions < 10) {
+    } if (totalInteractions < 10) {
       return { personalized: 0.6, trending: 0.3, diverse: 0.1 };
-    } else {
-      return { personalized: 0.7, trending: 0.2, diverse: 0.1 };
     }
+    return { personalized: 0.7, trending: 0.2, diverse: 0.1 };
   }
 
   /**

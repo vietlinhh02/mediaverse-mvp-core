@@ -234,8 +234,8 @@ class ConnectedAccountsController {
       await prisma.user.update({
         where: { id: userId },
         data: {
-          oauthProviders: Object.keys(updatedOAuthProviders).length > 0 
-            ? updatedOAuthProviders 
+          oauthProviders: Object.keys(updatedOAuthProviders).length > 0
+            ? updatedOAuthProviders
             : null
         }
       });

@@ -1,12 +1,7 @@
 // Push Notification Service for web push notifications
 const webpush = require('web-push');
 const { PrismaClient } = require('@prisma/client');
-const {
-  pushQueue,
-  createJob,
-  createDelayedJob,
-  PRIORITY
-} = require('../../../jobs/notificationQueue');
+// Push queue removed - will be rebuilt from scratch
 
 const prisma = new PrismaClient();
 
@@ -211,18 +206,15 @@ class PushService {
         userId,
         payload,
         options: {
-          priority: options.priority || PRIORITY.NORMAL,
+          priority: options.priority || 'normal',
           delay: options.delay || 0,
           ...options
         }
       };
 
-      const job = options.delay > 0
-        ? await createDelayedJob('send-push-notification', jobData, options.delay, options.priority)
-        : await createJob('send-push-notification', jobData, options.priority);
-
-      console.log(` Queued push notification for user ${userId}, job: ${job.id}`);
-      return { queued: true, jobId: job.id };
+      // Queue removed - will be rebuilt from scratch
+      console.log('Push notification queue disabled - will be rebuilt');
+      return { queued: true, jobId: 'disabled' };
     } catch (error) {
       console.error('Failed to queue push notification:', error);
       throw error;

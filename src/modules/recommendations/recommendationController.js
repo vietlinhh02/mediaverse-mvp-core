@@ -6,8 +6,8 @@ class RecommendationController {
     try {
       const { userId } = req.user;
       const options = {
-        limit: parseInt(req.query.limit , 20) || 20,
-        offset: parseInt(req.query.offset , 0) || 0,
+        limit: parseInt(req.query.limit, 20) || 20,
+        offset: parseInt(req.query.offset, 0) || 0,
         contentTypes: req.query.contentTypes || 'video,article,document',
         includeFollowing: req.query.includeFollowing === 'true'
       };
@@ -78,7 +78,7 @@ class RecommendationController {
       });
 
       // Remove content type prefix from id to match database UUID format
-      const transformedHits = searchResults.hits.map(hit => ({
+      const transformedHits = searchResults.hits.map((hit) => ({
         ...hit,
         id: hit.id.replace(/^(article|video|document)-/, '')
       }));

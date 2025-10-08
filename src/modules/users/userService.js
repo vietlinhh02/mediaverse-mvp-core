@@ -5,7 +5,7 @@ const sharp = require('sharp');
 const path = require('path');
 const fs = require('fs').promises;
 const { v7: uuidv7 } = require('uuid');
-const { uploadFile } = require('../media/services/s3Service');
+// S3Service removed - will be rebuilt from scratch
 
 class UserService {
   // Cache TTL constants
@@ -657,20 +657,14 @@ class UserService {
         .jpeg({ quality: 90 })
         .toFile(tempFilePath);
 
-      // Upload to S3
-      const s3Key = `banners/channel/${channelId}/${filename}`;
-      const bucket = process.env.S3_BUCKET;
-
-      if (!bucket) {
-        throw new Error('S3_BUCKET environment variable is not set.');
-      }
-
-      const uploadResult = await uploadFile(tempFilePath, bucket, s3Key);
-
-      // Clean up temporary file
-      await fs.unlink(tempFilePath);
-
-      const bannerImageUrl = uploadResult.Location;
+      // S3 upload removed - will be rebuilt from scratch
+      // For now, just use local file path
+      const bannerImageUrl = `/uploads/banners/channel/${channelId}/${filename}`;
+      
+      // Move file to final location
+      const finalPath = path.join(process.cwd(), 'uploads', 'banners', 'channel', channelId);
+      await fs.mkdir(finalPath, { recursive: true });
+      await fs.rename(tempFilePath, path.join(finalPath, filename));
 
       // Update channel with banner URL
       const updatedChannel = await this.updateChannel(channelId, userId, {

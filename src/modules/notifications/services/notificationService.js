@@ -1,16 +1,6 @@
 // Notification Service
 const { PrismaClient } = require('@prisma/client');
-const {
-  emailQueue,
-  pushQueue,
-  smsQueue,
-  inAppQueue,
-  notificationQueue,
-  batchQueue,
-  createJob,
-  createDelayedJob,
-  PRIORITY
-} = require('../../../jobs/notificationQueue');
+// Notification queue removed - will be rebuilt from scratch
 const pushService = require('./pushService');
 const preferencesService = require('./preferencesService');
 
@@ -76,7 +66,7 @@ class NotificationService {
             };
 
             await this.sendPushNotificationQueued(userId, pushPayload, {
-              priority: options.pushPriority || PRIORITY.NORMAL,
+              priority: options.pushPriority || 'normal',
               delay: options.pushDelay || 0
             });
           } else {
@@ -143,19 +133,9 @@ class NotificationService {
     try {
       if (sendImmediate) {
         // Use the main notification queue for immediate processing
-        return await notificationQueue.add({
-          userId,
-          type,
-          title,
-          message,
-          data,
-          channels,
-          priority
-        }, {
-          priority: priority === 'high' ? PRIORITY.HIGH
-            : priority === 'low' ? PRIORITY.LOW : PRIORITY.NORMAL,
-          delay
-        });
+        // Queue removed - will be rebuilt from scratch
+        console.log('Notification queue disabled - will be rebuilt');
+        return { id: 'disabled' };
       }
       // Create notification record first, then queue for processing
       const notification = await this.createNotification(userId, type, title, message, data, {
@@ -163,20 +143,9 @@ class NotificationService {
       });
 
       // Queue for processing with specified options
-      return await notificationQueue.add({
-        userId,
-        type,
-        title,
-        message,
-        data,
-        channels,
-        priority,
-        notificationId: notification.id
-      }, {
-        priority: priority === 'high' ? PRIORITY.HIGH
-          : priority === 'low' ? PRIORITY.LOW : PRIORITY.NORMAL,
-        delay
-      });
+      // Queue removed - will be rebuilt from scratch
+      console.log('Notification queue disabled - will be rebuilt');
+      return { id: 'disabled' };
     } catch (error) {
       console.error('Error creating advanced notification:', error);
       throw error;
@@ -188,15 +157,9 @@ class NotificationService {
    */
   static async sendBatchNotifications(type, userIds, notifications = [], options = {}) {
     try {
-      return await batchQueue.add({
-        type,
-        userIds,
-        notifications,
-        options
-      }, {
-        priority: PRIORITY.LOW, // Batch operations are typically low priority
-        delay: options.delay || 0
-      });
+      // Batch queue removed - will be rebuilt from scratch
+      console.log('Batch queue disabled - will be rebuilt');
+      return { id: 'disabled' };
     } catch (error) {
       console.error('Error sending batch notifications:', error);
       throw error;

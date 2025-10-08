@@ -1,6 +1,6 @@
 const { Parser } = require('json2csv');
 const prisma = require('../../../../prisma/prismaClient');
-const { reportingQueue } = require('../../../jobs/reportingQueue');
+// Reporting queue removed - will be rebuilt from scratch
 
 /**
  * Fetches analytics data based on specified criteria.
@@ -110,15 +110,9 @@ exports.scheduleReport = async (req, res, next) => {
   }
 
   try {
-    const job = await reportingQueue.add(
-      'generate-and-send-report',
-      { email, reportParams },
-      {
-        repeat: { cron: cronPattern },
-        // Create a unique job ID to prevent scheduling duplicates
-        jobId: `report-${email}-${reportParams.aggregationLevel || 'daily'}`
-      }
-    );
+    // Reporting queue removed - will be rebuilt from scratch
+    console.log('Reporting queue disabled - will be rebuilt');
+    const job = { id: 'disabled' };
     console.log(`Scheduled report job with ID: ${job.id}`);
 
     res.status(202).json({ message: 'Report scheduled successfully.' });
