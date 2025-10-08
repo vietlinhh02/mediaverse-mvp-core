@@ -18,7 +18,9 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 lerna-debug.log*
-
+.cursor
+.kiro
+.docs
 # Runtime data
 pids
 *.pid
@@ -112,7 +114,7 @@ ehthumbs.db
 Thumbs.db
 
 # File uploads
-uploads/
+uploadss/
 temp/
 
 # Database
