@@ -1,0 +1,1409 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Video API Test Suite - MediaCMS</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #2c3e50 0%, #3498db 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.2em;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            font-size: 1em;
+            opacity: 0.9;
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        .content {
+            padding: 30px;
+        }
+
+        .section {
+            margin-bottom: 40px;
+        }
+
+        .section h2 {
+            color: #2c3e50;
+            font-size: 1.8em;
+            margin-bottom: 20px;
+            border-bottom: 3px solid #3498db;
+            padding-bottom: 10px;
+        }
+
+        .upload-section {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 25px;
+            border: 2px dashed #dee2e6;
+            transition: all 0.3s ease;
+        }
+
+        .upload-section.dragover {
+            border-color: #3498db;
+            background: #e3f2fd;
+        }
+
+        .upload-form {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .form-group label {
+            font-weight: 600;
+            color: #495057;
+            font-size: 1.1em;
+        }
+
+        .form-group input,
+        .form-group textarea,
+        .form-group select {
+            padding: 12px 15px;
+            border: 2px solid #e9ecef;
+            border-radius: 8px;
+            font-size: 1em;
+            transition: all 0.3s ease;
+        }
+
+        .form-group input:focus,
+        .form-group textarea:focus,
+        .form-group select:focus {
+            outline: none;
+            border-color: #3498db;
+            box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.1);
+        }
+
+        .file-input-container {
+            position: relative;
+            display: inline-block;
+            width: 100%;
+        }
+
+        .file-input {
+            display: none;
+        }
+
+        .file-input-label {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            border: 2px dashed #dee2e6;
+            border-radius: 8px;
+            background: white;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            min-height: 60px;
+        }
+
+        .file-input-label:hover {
+            border-color: #3498db;
+            background: #f8f9ff;
+        }
+
+        .file-input-label.dragover {
+            border-color: #3498db;
+            background: #e3f2fd;
+        }
+
+        .file-input-label i {
+            font-size: 2em;
+            color: #6c757d;
+            margin-right: 10px;
+        }
+
+        .file-name {
+            margin-top: 10px;
+            font-weight: 500;
+            color: #495057;
+        }
+
+        .progress-container {
+            display: none;
+            margin-top: 20px;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 20px;
+            background: #e9ecef;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #28a745, #20c997);
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+
+        .progress-text {
+            text-align: center;
+            margin-top: 10px;
+            font-weight: 500;
+            color: #495057;
+        }
+
+        .upload-btn {
+            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 8px;
+            font-size: 1.1em;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            align-self: flex-start;
+        }
+
+        .upload-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(40, 167, 69, 0.3);
+        }
+
+        .upload-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .videos-section {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+            gap: 25px;
+        }
+
+        .video-card {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.08);
+            overflow: hidden;
+            transition: all 0.3s ease;
+            border: 2px solid transparent;
+        }
+
+        .video-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 15px 35px rgba(0,0,0,0.15);
+            border-color: #3498db;
+        }
+
+        .video-thumbnail {
+            width: 100%;
+            height: 200px;
+            background: linear-gradient(45deg, #f8f9fa, #e9ecef);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #6c757d;
+            font-size: 3em;
+            position: relative;
+        }
+
+        .video-play-btn {
+            position: absolute;
+            width: 60px;
+            height: 60px;
+            background: rgba(0,0,0,0.7);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 1.5em;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .video-play-btn:hover {
+            background: rgba(0,0,0,0.9);
+            transform: scale(1.1);
+        }
+
+        .video-info {
+            padding: 20px;
+        }
+
+        .video-title {
+            font-size: 1.2em;
+            font-weight: 600;
+            color: #2c3e50;
+            margin-bottom: 8px;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            line-clamp: 2;
+            overflow: hidden;
+        }
+
+        .video-meta {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .video-status {
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.85em;
+            font-weight: 500;
+            text-transform: uppercase;
+        }
+
+        .status-published {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .status-processing {
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        .status-draft {
+            background: #e2e3e5;
+            color: #383d41;
+        }
+
+        .video-duration {
+            color: #6c757d;
+            font-size: 0.9em;
+        }
+
+        .video-description {
+            color: #6c757d;
+            font-size: 0.9em;
+            margin-bottom: 15px;
+            display: -webkit-box;
+            -webkit-line-clamp: 3;
+            -webkit-box-orient: vertical;
+            line-clamp: 3;
+            overflow: hidden;
+        }
+
+        .video-actions {
+            display: flex;
+            gap: 5px;
+            flex-wrap: wrap;
+        }
+
+        .action-btn {
+            padding: 6px 12px;
+            border: none;
+            border-radius: 6px;
+            font-size: 0.8em;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            display: inline-block;
+            text-align: center;
+            min-width: 80px;
+        }
+
+        .play-btn {
+            background: #3498db;
+            color: white;
+        }
+
+        .play-btn:hover {
+            background: #2980b9;
+        }
+
+        .delete-btn {
+            background: #e74c3c;
+            color: white;
+        }
+
+        .delete-btn:hover {
+            background: #c0392b;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.8);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal.show {
+            display: flex;
+        }
+
+        .modal-content {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            max-width: 90vw;
+            max-height: 90vh;
+            position: relative;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+
+        .modal-close {
+            position: absolute;
+            top: 15px;
+            right: 20px;
+            font-size: 1.5em;
+            cursor: pointer;
+            color: #6c757d;
+            transition: color 0.3s ease;
+        }
+
+        .modal-close:hover {
+            color: #495057;
+        }
+
+        .modal-video {
+            width: 100%;
+            max-width: 800px;
+            border-radius: 8px;
+        }
+
+        .alert {
+            padding: 15px 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            display: none;
+        }
+
+        .alert-success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .alert-error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .alert-info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #3498db;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-right: 10px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #6c757d;
+        }
+
+        .empty-state i {
+            font-size: 4em;
+            margin-bottom: 20px;
+            opacity: 0.5;
+        }
+
+        .empty-state h3 {
+            font-size: 1.5em;
+            margin-bottom: 10px;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                margin: 10px;
+            }
+
+            .header {
+                padding: 20px;
+            }
+
+            .header h1 {
+                font-size: 2em;
+            }
+
+            .content {
+                padding: 20px;
+            }
+
+            .videos-section {
+                grid-template-columns: 1fr;
+            }
+
+            .video-meta {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 5px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎬 Video API Test Suite</h1>
+            <p>Test đầy đủ các endpoint video management, streaming và chunked upload cho MediaCMS</p>
+        </div>
+
+        <div class="content">
+            <!-- Alert Messages -->
+            <div id="alert" class="alert"></div>
+
+            <!-- Upload Section -->
+            <div class="section">
+                <h2>📤 Upload Video</h2>
+                <div class="upload-section" id="uploadSection">
+                    <form class="upload-form" id="uploadForm" onsubmit="return false;">
+                        <div class="form-group">
+                            <label for="jwtToken">JWT Token</label>
+                            <input type="text" id="jwtToken" name="jwtToken" placeholder="Nhập JWT token..." value="your-jwt-token-here">
+                            <small style="color: #6c757d; font-size: 0.8em;">Cập nhật token để test API</small>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="videoFile">Chọn file video</label>
+                            <div class="file-input-container">
+                                <input type="file" id="videoFile" name="video" class="file-input" accept="video/*" required>
+                                <label for="videoFile" class="file-input-label" id="fileInputLabel">
+                                    <i>📁</i>
+                                    <span>Kéo thả file video vào đây hoặc click để chọn</span>
+                                    <div class="file-name" id="fileName"></div>
+                                </label>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="title">Tiêu đề video</label>
+                            <input type="text" id="title" name="title" placeholder="Nhập tiêu đề video..." required>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="description">Mô tả</label>
+                            <textarea id="description" name="description" rows="3" placeholder="Nhập mô tả video..."></textarea>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="category">Danh mục</label>
+                            <select id="category" name="category">
+                                <option value="education">Giáo dục</option>
+                                <option value="entertainment">Giải trí</option>
+                                <option value="technology">Công nghệ</option>
+                                <option value="music">Âm nhạc</option>
+                                <option value="sports">Thể thao</option>
+                                <option value="other">Khác</option>
+                            </select>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="tags">Tags (phân cách bằng dấu phẩy)</label>
+                            <input type="text" id="tags" name="tags" placeholder="tag1, tag2, tag3">
+                        </div>
+
+                        <div class="form-group">
+                            <label for="concurrency">Số luồng upload song song</label>
+                            <select id="concurrency" name="concurrency">
+                                <option value="1">1 (Tuần tự)</option>
+                                <option value="2">2</option>
+                                <option value="4" selected>4 (Khuyên dùng)</option>
+                                <option value="8">8 (Thử nghiệm)</option>
+                            </select>
+                        </div>
+
+                        <div class="alert alert-info" style="margin-bottom: 20px;">
+                            <strong>ℹ️ Phương thức upload:</strong> Chỉ sử dụng Chunked Upload từ uploads module (đã được optimize)
+                        </div>
+
+                        <div class="progress-container" id="progressContainer">
+                            <div class="progress-bar">
+                                <div class="progress-fill" id="progressFill"></div>
+                            </div>
+                            <div class="progress-text" id="progressText">Đang upload... 0%</div>
+                        </div>
+
+                        <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                            <button type="button" class="upload-btn" id="uploadBtn" onclick="handleUpload(event)">
+                                <span id="uploadBtnText">🚀 Upload Video (Chunked)</span>
+                            </button>
+                            <button type="button" class="upload-btn" onclick="getUploadStatus(event)" style="background: linear-gradient(135deg, #17a2b8 0%, #138496 100%);">
+                                📊 Upload Status
+                            </button>
+                            <button type="button" class="upload-btn" onclick="getQueueStatus(event)" style="background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%);">
+                                🔄 Queue Status (Admin)
+                            </button>
+                            <button type="button" class="upload-btn" onclick="testServerConnection(event)" style="background: linear-gradient(135deg, #28a745 0%, #20c997 100%);">
+                                🧪 Test Connection
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Videos List Section -->
+            <div class="section">
+                <h2>🎥 Danh sách Video</h2>
+                <div id="videosContainer">
+                    <div class="empty-state">
+                        <i>🎬</i>
+                        <h3>Chưa có video nào</h3>
+                        <p>Upload video đầu tiên của bạn để bắt đầu!</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Video Player Modal -->
+    <div class="modal" id="videoModal">
+        <div class="modal-content">
+            <span class="modal-close" id="modalClose">&times;</span>
+            <video id="videoPlayer" class="modal-video" controls>
+                Trình duyệt của bạn không hỗ trợ video tag.
+            </video>
+        </div>
+    </div>
+
+    <script>
+        // Configuration
+        const API_BASE = 'http://localhost:5000/api/content';
+        const UPLOAD_BASE = 'http://localhost:5000/api/uploads';
+        let AUTH_TOKEN = 'your-jwt-token-here'; // Will be updated from input
+
+        // Test server connection
+        console.log('🚀 Video Test Suite loaded');
+        console.log('📡 API Base:', API_BASE);
+        console.log('📤 Upload Base:', UPLOAD_BASE);
+
+        // DOM Elements
+        const uploadForm = document.getElementById('uploadForm');
+        const uploadSection = document.getElementById('uploadSection');
+        const jwtTokenInput = document.getElementById('jwtToken');
+        const fileInput = document.getElementById('videoFile');
+        const fileInputLabel = document.getElementById('fileInputLabel');
+        const fileName = document.getElementById('fileName');
+        const progressContainer = document.getElementById('progressContainer');
+        const progressFill = document.getElementById('progressFill');
+        const progressText = document.getElementById('progressText');
+        const uploadBtn = document.getElementById('uploadBtn');
+        const uploadBtnText = document.getElementById('uploadBtnText');
+        const videosContainer = document.getElementById('videosContainer');
+        const alertDiv = document.getElementById('alert');
+        const videoModal = document.getElementById('videoModal');
+        const videoPlayer = document.getElementById('videoPlayer');
+        const modalClose = document.getElementById('modalClose');
+
+        // Utility Functions
+        function showAlert(message, type = 'info') {
+            alertDiv.className = `alert alert-${type}`;
+            alertDiv.textContent = message;
+            alertDiv.style.display = 'block';
+            setTimeout(() => {
+                alertDiv.style.display = 'none';
+            }, 5000);
+        }
+
+        function formatDuration(seconds) {
+            const hours = Math.floor(seconds / 3600);
+            const minutes = Math.floor((seconds % 3600) / 60);
+            const secs = Math.floor(seconds % 60);
+
+            if (hours > 0) {
+                return `${hours}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+            }
+            return `${minutes}:${secs.toString().padStart(2, '0')}`;
+        }
+
+        function formatDate(dateString) {
+            return new Date(dateString).toLocaleDateString('vi-VN');
+        }
+
+        // JWT Token Update
+        jwtTokenInput.addEventListener('input', (e) => {
+            AUTH_TOKEN = e.target.value.trim();
+        });
+
+        // Prevent form submission to avoid page refresh
+        uploadForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            console.log('Form submit event prevented');
+            return false;
+        });
+
+        // Prevent Enter key from submitting form
+        uploadForm.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && e.target.tagName !== 'TEXTAREA') {
+                e.preventDefault();
+                e.stopPropagation();
+                console.log('Enter key prevented');
+                return false;
+            }
+        });
+
+        // File Input Handling
+        if (fileInput) {
+            fileInput.addEventListener('change', (e) => {
+                const file = e.target.files[0];
+                if (file) {
+                    fileName.textContent = `📄 ${file.name} (${(file.size / (1024 * 1024)).toFixed(2)} MB)`;
+                } else {
+                    fileName.textContent = '';
+                }
+            });
+        }
+
+        // Drag and Drop
+        uploadSection.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadSection.classList.add('dragover');
+        });
+
+        uploadSection.addEventListener('dragleave', () => {
+            uploadSection.classList.remove('dragover');
+        });
+
+        uploadSection.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadSection.classList.remove('dragover');
+
+            const files = e.dataTransfer.files;
+            if (files.length > 0 && files[0].type.startsWith('video/')) {
+                fileInput.files = files;
+                fileInput.dispatchEvent(new Event('change'));
+            } else {
+                showAlert('Vui lòng chọn file video hợp lệ!', 'error');
+            }
+        });
+
+        // Chunked Upload Functions
+        let currentUploadSession = null;
+
+        async function initChunkedUpload(file, metadata) {
+            const chunkSize = 5 * 1024 * 1024; // 5MB chunks
+
+            const initData = {
+                filename: file.name,
+                contentType: file.type || 'video/mp4',
+                totalSize: file.size,
+                chunkSize: chunkSize,
+                title: metadata.title,
+                description: metadata.description,
+                category: metadata.category,
+                tags: metadata.tags,
+                visibility: metadata.visibility || 'public'
+            };
+
+            const response = await fetch(`${UPLOAD_BASE}/videos/chunk/init`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${AUTH_TOKEN}`
+                },
+                body: JSON.stringify(initData)
+            });
+
+            if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.error || 'Failed to initialize upload');
+            }
+
+            const result = await response.json();
+            return {
+                ...result.data,
+                file: file,
+                chunkSize: chunkSize,
+                totalChunks: Math.ceil(file.size / chunkSize)
+            };
+        }
+
+        async function uploadChunk(uploadId, chunkIndex, chunkData) {
+            const response = await fetch(`${UPLOAD_BASE}/videos/chunk/${uploadId}?index=${chunkIndex}`, {
+                method: 'PUT',
+                headers: {
+                    'Authorization': `Bearer ${AUTH_TOKEN}`,
+                    'Content-Type': 'application/octet-stream'
+                },
+                body: chunkData
+            });
+
+            if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.error || 'Failed to upload chunk');
+            }
+
+            return await response.json();
+        }
+
+        async function completeChunkedUpload(uploadId) {
+            const response = await fetch(`${UPLOAD_BASE}/videos/chunk/${uploadId}/complete`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${AUTH_TOKEN}`
+                }
+            });
+
+            if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.error || 'Failed to complete upload');
+            }
+
+            return await response.json();
+        }
+
+        async function getChunkedUploadStatus(uploadId) {
+            const response = await fetch(`${UPLOAD_BASE}/videos/chunk/${uploadId}/status`, {
+                headers: {
+                    'Authorization': `Bearer ${AUTH_TOKEN}`
+                }
+            });
+
+            if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.error || 'Failed to get upload status');
+            }
+
+            return await response.json();
+        }
+
+        async function abortChunkedUpload(uploadId) {
+            try {
+                await fetch(`${UPLOAD_BASE}/videos/chunk/${uploadId}`, {
+                    method: 'DELETE',
+                    headers: {
+                        'Authorization': `Bearer ${AUTH_TOKEN}`
+                    }
+                });
+            } catch (error) {
+                console.warn('Failed to abort upload:', error);
+            }
+        }
+
+        async function uploadVideoChunked(file, metadata, onProgress) {
+            try {
+                // Initialize upload
+                progressText.textContent = 'Đang khởi tạo upload...';
+                const session = await initChunkedUpload(file, metadata);
+                currentUploadSession = session;
+
+                const { uploadId, chunkSize, totalChunks } = session;
+                const CONCURRENCY = parseInt(document.getElementById('concurrency').value, 10) || 4;
+
+                console.log(`🚀 Starting parallel upload with ${CONCURRENCY} workers...`);
+
+                const chunkQueue = Array.from({ length: totalChunks }, (_, i) => i);
+                let uploadedChunks = 0;
+
+                const worker = async () => {
+                    while (chunkQueue.length > 0) {
+                        const chunkIndex = chunkQueue.shift();
+                        if (chunkIndex === undefined) continue;
+
+                        try {
+                            const start = chunkIndex * chunkSize;
+                            const end = Math.min(start + chunkSize, file.size);
+                            const chunk = file.slice(start, end);
+
+                            await uploadChunk(uploadId, chunkIndex, chunk);
+
+                            uploadedChunks++;
+                            const progress = Math.round((uploadedChunks / totalChunks) * 100);
+
+                            // Update UI from a single point to avoid weird text updates
+                            progressFill.style.width = progress + '%';
+                            progressText.textContent = `Đang upload... ${progress}% (${uploadedChunks}/${totalChunks} chunks)`;
+
+                            if (onProgress) {
+                                onProgress(progress, uploadedChunks, totalChunks);
+                            }
+                        } catch (err) {
+                            // Stop other workers from starting new chunks
+                            chunkQueue.length = 0;
+                            throw err; // Propagate error to Promise.all
+                        }
+                    }
+                };
+
+                const workers = Array(CONCURRENCY).fill(0).map(worker);
+                await Promise.all(workers);
+
+
+                // Complete upload
+                progressText.textContent = 'Đang hoàn thành upload...';
+                const result = await completeChunkedUpload(uploadId);
+
+                currentUploadSession = null;
+                return result;
+
+            } catch (error) {
+                // Cleanup on error
+                if (currentUploadSession) {
+                    await abortChunkedUpload(currentUploadSession.uploadId);
+                    currentUploadSession = null;
+                }
+                throw error;
+            }
+        }
+
+
+        // Test Server Connection
+        async function testServerConnection(event) {
+            if (event) {
+                event.preventDefault();
+                event.stopPropagation();
+            }
+            console.log('🧪 Testing server connection...');
+
+            try {
+                // Test basic API health
+                const healthResponse = await fetch('http://localhost:5000/health');
+                console.log('🏥 Health check:', healthResponse.ok ? '✅ OK' : '❌ FAILED');
+
+                // Test videos endpoint
+                const videosResponse = await fetch(`${API_BASE}/videos`, {
+                    headers: {
+                        'Authorization': `Bearer ${AUTH_TOKEN}`
+                    }
+                });
+                console.log('🎬 Videos endpoint:', videosResponse.ok ? '✅ OK' : '❌ FAILED');
+
+                // Test upload status
+                const uploadResponse = await fetch(`${API_BASE}/videos/upload-status`, {
+                    headers: {
+                        'Authorization': `Bearer ${AUTH_TOKEN}`
+                    }
+                });
+                console.log('📊 Upload status:', uploadResponse.ok ? '✅ OK' : '❌ FAILED');
+
+                showAlert('✅ Server connection test completed! Check console for details.', 'info');
+            } catch (error) {
+                console.error('❌ Server connection test failed:', error);
+                showAlert(`❌ Server connection failed: ${error.message}`, 'error');
+            }
+        }
+
+        // Get Upload Status
+        async function getUploadStatus(event) {
+            if (event) {
+                event.preventDefault();
+                event.stopPropagation();
+            }
+            try {
+                const response = await fetch(`${API_BASE}/videos/upload-status`, {
+                    headers: {
+                        'Authorization': `Bearer ${AUTH_TOKEN}`
+                    }
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+
+                const data = await response.json();
+                return data;
+            } catch (error) {
+                console.error('Get upload status error:', error);
+                throw error;
+            }
+        }
+
+        // Get Queue Status (Admin)
+        async function getQueueStatus(event) {
+            if (event) {
+                event.preventDefault();
+                event.stopPropagation();
+            }
+            try {
+                const response = await fetch(`${API_BASE}/admin/queue-status`, {
+                    headers: {
+                        'Authorization': `Bearer ${AUTH_TOKEN}`
+                    }
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+
+                const data = await response.json();
+
+                if (data.success) {
+                    const queue = data.data;
+                    let message = `🔄 Trạng thái Queue (Admin):\n`;
+                    message += `• Tổng jobs: ${queue.totalJobs}\n`;
+                    message += `• Jobs đang chờ: ${queue.pendingJobs}\n`;
+                    message += `• Jobs đang xử lý: ${queue.processingJobs}\n`;
+                    message += `• Jobs hoàn thành: ${queue.completedJobs}\n`;
+                    message += `• Jobs thất bại: ${queue.failedJobs}\n`;
+                    message += `• Workers active: ${queue.activeWorkers}\n`;
+                    showAlert(message, 'info');
+                } else {
+                    throw new Error(data.message || 'Failed to get queue status');
+                }
+
+            } catch (error) {
+                console.error('Get queue status error:', error);
+                showAlert(`❌ Không thể lấy trạng thái queue: ${error.message}`, 'error');
+            }
+        }
+
+
+        // Load Videos
+        async function loadVideos() {
+            try {
+                const response = await fetch(`${API_BASE}/videos`, {
+                    headers: {
+                        'Authorization': `Bearer ${AUTH_TOKEN}`
+                    }
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+
+                const data = await response.json();
+
+                if (data.success) {
+                    renderVideos(data.data.videos || data.data);
+                } else {
+                    throw new Error(data.message || 'Failed to load videos');
+                }
+            } catch (error) {
+                console.error('Load videos error:', error);
+                showAlert(`❌ Không thể tải danh sách video: ${error.message}`, 'error');
+            }
+        }
+
+        // Render Videos
+        function renderVideos(videos) {
+            if (!videos || videos.length === 0) {
+                videosContainer.innerHTML = `
+                    <div class="empty-state">
+                        <i>🎬</i>
+                        <h3>Chưa có video nào</h3>
+                        <p>Upload video đầu tiên của bạn để bắt đầu!</p>
+                    </div>
+                `;
+                return;
+            }
+
+            videosContainer.innerHTML = `
+                <div class="videos-section">
+                    ${videos.map(video => `
+                        <div class="video-card" data-video-id="${video.id}">
+                            <div class="video-thumbnail">
+                                <div class="video-play-btn" onclick="playVideo('${video.id}')">
+                                    ▶️
+                                </div>
+                                ${video.thumbnailUrl ? `<img src="${video.thumbnailUrl}" alt="${video.title}" style="width: 100%; height: 100%; object-fit: cover;">` : ''}
+                            </div>
+                            <div class="video-info">
+                                <div class="video-title">${video.title}</div>
+                                <div class="video-meta">
+                                    <span class="video-status status-${video.status || 'draft'}">${video.status || 'draft'}</span>
+                                    <span class="video-duration">${video.duration ? formatDuration(video.duration) : 'N/A'}</span>
+                                </div>
+                                <div class="video-description">${video.description || 'Không có mô tả'}</div>
+                                <div class="video-actions">
+                                    <button class="action-btn play-btn" onclick="playVideo('${video.id}')">▶️ Phát</button>
+                                    <button class="action-btn" onclick="getVideoStats('${video.id}')" style="background: #17a2b8; color: white;">📊 Stats</button>
+                                    <button class="action-btn" onclick="getVideoTranscript('${video.id}')" style="background: #6f42c1; color: white;">📝 Transcript</button>
+                                    <button class="action-btn" onclick="publishVideo('${video.id}')" style="background: #ffc107; color: black;">📤 Publish</button>
+                                    <button class="action-btn" onclick="reprocessVideo('${video.id}')" style="background: #fd7e14; color: white;">🔄 Reprocess</button>
+                                    <button class="action-btn delete-btn" onclick="deleteVideo('${video.id}')">🗑️ Xóa</button>
+                                </div>
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+        }
+
+        // Play Video
+        async function playVideo(videoId) {
+            try {
+                const response = await fetch(`${API_BASE}/content/videos/${videoId}/stream`, {
+                    headers: {
+                        'Authorization': `Bearer ${AUTH_TOKEN}`
+                    }
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+
+                const streamUrl = response.url; // For HLS streaming
+                videoPlayer.src = streamUrl;
+                videoModal.classList.add('show');
+                videoPlayer.play();
+
+            } catch (error) {
+                console.error('Play video error:', error);
+                showAlert(`❌ Không thể phát video: ${error.message}`, 'error');
+            }
+        }
+
+        // Delete Video
+        async function deleteVideo(videoId) {
+            if (!confirm('Bạn có chắc chắn muốn xóa video này?')) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE}/videos/${videoId}`, {
+                    method: 'DELETE',
+                    headers: {
+                        'Authorization': `Bearer ${AUTH_TOKEN}`
+                    }
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+
+                showAlert('✅ Video đã được xóa thành công!', 'success');
+                loadVideos();
+
+            } catch (error) {
+                console.error('Delete video error:', error);
+                showAlert(`❌ Không thể xóa video: ${error.message}`, 'error');
+            }
+        }
+
+        // Publish Video
+        async function publishVideo(videoId) {
+            try {
+                const response = await fetch(`${API_BASE}/videos/${videoId}/publish`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${AUTH_TOKEN}`
+                    }
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+
+                const data = await response.json();
+                showAlert('✅ Video đã được publish thành công!', 'success');
+                loadVideos();
+
+            } catch (error) {
+                console.error('Publish video error:', error);
+                showAlert(`❌ Không thể publish video: ${error.message}`, 'error');
+            }
+        }
+
+        // Get Video Stats
+        async function getVideoStats(videoId) {
+            try {
+                const response = await fetch(`${API_BASE}/videos/${videoId}/stats`, {
+                    headers: {
+                        'Authorization': `Bearer ${AUTH_TOKEN}`
+                    }
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+
+                const data = await response.json();
+
+                if (data.success) {
+                    const stats = data.data;
+                    let message = `📊 Thống kê video:\n`;
+                    message += `• Lượt xem: ${stats.views || 0}\n`;
+                    message += `• Lượt thích: ${stats.likes || 0}\n`;
+                    message += `• Lượt chia sẻ: ${stats.shares || 0}\n`;
+                    message += `• Lượt bình luận: ${stats.comments || 0}\n`;
+                    message += `• Thời gian xem trung bình: ${stats.avgWatchTime || 0}s\n`;
+                    showAlert(message, 'info');
+                } else {
+                    throw new Error(data.message || 'Failed to get stats');
+                }
+
+            } catch (error) {
+                console.error('Get video stats error:', error);
+                showAlert(`❌ Không thể lấy thống kê: ${error.message}`, 'error');
+            }
+        }
+
+        // Reprocess Video
+        async function reprocessVideo(videoId) {
+            if (!confirm('Bạn có chắc chắn muốn reprocess video này? Quá trình này có thể mất thời gian.')) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE}/videos/${videoId}/reprocess`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${AUTH_TOKEN}`
+                    }
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+
+                showAlert('✅ Video đã được đưa vào queue reprocess!', 'success');
+
+            } catch (error) {
+                console.error('Reprocess video error:', error);
+                showAlert(`❌ Không thể reprocess video: ${error.message}`, 'error');
+            }
+        }
+
+        // Get Video Transcript
+        async function getVideoTranscript(videoId) {
+            try {
+                const response = await fetch(`${API_BASE}/videos/${videoId}/transcript`, {
+                    headers: {
+                        'Authorization': `Bearer ${AUTH_TOKEN}`
+                    }
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+
+                const data = await response.json();
+
+                if (data.success) {
+                    const transcript = data.data.transcript;
+                    if (transcript) {
+                        showAlert(`📝 Transcript:\n${transcript}`, 'info');
+                    } else {
+                        showAlert('📝 Video chưa có transcript', 'info');
+                    }
+                } else {
+                    throw new Error(data.message || 'Failed to get transcript');
+                }
+
+            } catch (error) {
+                console.error('Get transcript error:', error);
+                showAlert(`❌ Không thể lấy transcript: ${error.message}`, 'error');
+            }
+        }
+
+        // Upload handler function
+        async function handleUpload(event) {
+            // Prevent form submission
+            if (event) {
+                event.preventDefault();
+                event.stopPropagation();
+            }
+            
+            console.log('Upload button clicked, starting process...');
+
+            try {
+                const file = fileInput.files[0];
+
+                if (!file) {
+                    showAlert('Vui lòng chọn file video!', 'error');
+                    return;
+                }
+
+                // Validate JWT token
+                if (!AUTH_TOKEN || AUTH_TOKEN === 'your-jwt-token-here') {
+                    showAlert('Vui lòng nhập JWT token hợp lệ!', 'error');
+                    jwtTokenInput.focus();
+                    return;
+                }
+
+                // Prepare metadata
+                const metadata = {
+                    title: document.getElementById('title').value.trim(),
+                    description: document.getElementById('description').value.trim() || '',
+                    category: document.getElementById('category').value,
+                    tags: document.getElementById('tags').value.trim() || '',
+                    visibility: 'public'
+                };
+
+                // Validate required fields
+                if (!metadata.title || !metadata.category) {
+                    showAlert('Vui lòng nhập tiêu đề và chọn danh mục!', 'error');
+                    return;
+                }
+
+                // Show progress
+                progressContainer.style.display = 'block';
+                uploadBtn.disabled = true;
+                uploadBtnText.innerHTML = '<div class="loading"></div>Đang upload...';
+
+                // Use chunked upload from uploads module
+                const response = await uploadVideoChunked(file, metadata, (progress, uploaded, total) => {
+                    console.log(`Upload progress: ${progress}% (${uploaded}/${total} chunks)`);
+                });
+
+                if (response.success) {
+                    showAlert('✅ Video đã được upload thành công!', 'success');
+
+                    // Reset form fields manually (keep token)
+                    fileInput.value = '';
+                    fileName.textContent = '';
+                    document.getElementById('title').value = '';
+                    document.getElementById('description').value = '';
+                    document.getElementById('category').value = 'education';
+                    document.getElementById('tags').value = '';
+
+                    // Reload videos
+                    loadVideos();
+                } else {
+                    throw new Error(response.message || response.error || 'Upload failed');
+                }
+
+            } catch (error) {
+                console.error('Upload error:', error);
+                showAlert(`❌ Upload thất bại: ${error.message}`, 'error');
+            } finally {
+                uploadBtn.disabled = false;
+                uploadBtnText.textContent = '🚀 Upload Video';
+                progressContainer.style.display = 'none';
+                progressFill.style.width = '0%';
+            }
+        }
+
+        // Global functions for onclick
+        window.playVideo = playVideo;
+        window.deleteVideo = deleteVideo;
+        window.publishVideo = publishVideo;
+        window.getVideoStats = getVideoStats;
+        window.reprocessVideo = reprocessVideo;
+        window.getVideoTranscript = getVideoTranscript;
+        window.getQueueStatus = getQueueStatus;
+        window.handleUpload = handleUpload;
+        window.testServerConnection = testServerConnection;
+
+        // Modal Close
+        modalClose.addEventListener('click', () => {
+            videoModal.classList.remove('show');
+            videoPlayer.pause();
+            videoPlayer.src = '';
+        });
+
+        videoModal.addEventListener('click', (e) => {
+            if (e.target === videoModal) {
+                videoModal.classList.remove('show');
+                videoPlayer.pause();
+                videoPlayer.src = '';
+            }
+        });
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', () => {
+            // Set initial JWT token value
+            jwtTokenInput.value = AUTH_TOKEN;
+
+            loadVideos();
+
+            // Check if server is running
+            fetch(`${API_BASE}/videos`, {
+                headers: { 'Authorization': `Bearer ${AUTH_TOKEN}` }
+            }).catch(() => {
+                showAlert('⚠️ Không thể kết nối đến server. Vui lòng đảm bảo server đang chạy trên localhost:3000', 'error');
+            });
+        });
+
+        // Auth Token Setup - Now handled by input field
+        // Token is updated in real-time via jwtTokenInput event listener
+    </script>
+
+    <!-- Documentation -->
+    <div style="margin-top: 50px; padding: 30px; background: #f8f9fa; border-radius: 10px; border: 1px solid #dee2e6;">
+        <h3 style="color: #2c3e50; margin-bottom: 20px;">📚 API Endpoints Documentation</h3>
+
+        <h4 style="color: #495057;">Video Management Endpoints:</h4>
+        <ul style="margin-bottom: 20px;">
+            <li><code>GET /api/content/videos</code> - List videos</li>
+            <li><code>GET /api/content/videos/{id}</code> - Get video details</li>
+            <li><code>DELETE /api/content/videos/{id}</code> - Delete video</li>
+            <li><code>GET /api/content/videos/{id}/stream</code> - Stream video</li>
+            <li><code>POST /api/content/videos/{id}/publish</code> - Publish video</li>
+            <li><code>GET /api/content/videos/{id}/stats</code> - Get video stats</li>
+            <li><code>GET /api/content/videos/{id}/transcript</code> - Get transcript</li>
+            <li><code>POST /api/content/videos/{id}/reprocess</code> - Reprocess video</li>
+            <li><code>GET /api/content/videos/upload-status</code> - Upload status</li>
+            <li><code>GET /api/content/admin/queue-status</code> - Queue status (admin)</li>
+        </ul>
+
+        <h4 style="color: #495057;">Chunked Upload Endpoints (từ uploads module):</h4>
+        <ul style="margin-bottom: 20px;">
+            <li><code>POST /api/uploads/videos/chunk/init</code> - Initialize chunked upload</li>
+            <li><code>PUT /api/uploads/videos/chunk/{uploadId}?index={chunkIndex}</code> - Upload chunk</li>
+            <li><code>GET /api/uploads/videos/chunk/{uploadId}/status</code> - Get upload status</li>
+            <li><code>POST /api/uploads/videos/chunk/{uploadId}/complete</code> - Complete upload</li>
+            <li><code>DELETE /api/uploads/videos/chunk/{uploadId}</code> - Abort upload</li>
+        </ul>
+
+        <h4 style="color: #495057;">Upload Method:</h4>
+        <div style="background: white; padding: 15px; border-radius: 8px; border: 1px solid #dee2e6;">
+            <p><strong>📝 Lưu ý:</strong> Sử dụng <code>uploads module</code> production-ready có sẵn thay vì duplicate code.</p>
+
+            <p><strong>🚀 Chunked Upload (từ uploads module):</strong></p>
+            <ul>
+                <li>✅ Upload lên MinIO/S3 tự động</li>
+                <li>✅ Tạo Content record và enqueue processing job</li>
+                <li>✅ Checksum validation cho từng chunk</li>
+                <li>✅ Session management với file metadata</li>
+                <li>✅ Tự động cleanup temp files</li>
+                <li>✅ Resume capability nếu bị gián đoạn</li>
+                <li>✅ Progress tracking chi tiết</li>
+            </ul>
+        </div>
+    </div>
+</body>
+</html>

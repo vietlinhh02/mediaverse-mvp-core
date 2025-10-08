@@ -1,0 +1,766 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Video Upload - MediaCMS</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #2c3e50 0%, #3498db 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2em;
+            margin-bottom: 10px;
+        }
+
+        .content {
+            padding: 30px;
+        }
+
+        .section {
+            margin-bottom: 30px;
+        }
+
+        .section h2 {
+            color: #2c3e50;
+            font-size: 1.5em;
+            margin-bottom: 15px;
+            border-bottom: 2px solid #3498db;
+            padding-bottom: 8px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            font-weight: 600;
+            color: #495057;
+            margin-bottom: 8px;
+        }
+
+        .form-group input,
+        .form-group textarea,
+        .form-group select {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e9ecef;
+            border-radius: 8px;
+            font-size: 1em;
+            transition: border-color 0.3s;
+        }
+
+        .form-group input:focus,
+        .form-group textarea:focus,
+        .form-group select:focus {
+            outline: none;
+            border-color: #3498db;
+        }
+
+        .file-input-wrapper {
+            position: relative;
+            display: block;
+            width: 100%;
+            padding: 40px 20px;
+            border: 3px dashed #dee2e6;
+            border-radius: 8px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+            background: #f8f9fa;
+        }
+
+        .file-input-wrapper:hover {
+            border-color: #3498db;
+            background: #e3f2fd;
+        }
+
+        .file-input-wrapper.dragover {
+            border-color: #3498db;
+            background: #e3f2fd;
+        }
+
+        .file-input-wrapper input[type="file"] {
+            display: none;
+        }
+
+        .file-info {
+            margin-top: 15px;
+            padding: 10px;
+            background: #e3f2fd;
+            border-radius: 6px;
+            display: none;
+        }
+
+        .file-info.show {
+            display: block;
+        }
+
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 1em;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(40, 167, 69, 0.3);
+        }
+
+        .btn-primary:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .btn-secondary {
+            background: linear-gradient(135deg, #17a2b8 0%, #138496 100%);
+            color: white;
+            margin-left: 10px;
+        }
+
+        .progress-container {
+            display: none;
+            margin-top: 20px;
+        }
+
+        .progress-container.show {
+            display: block;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 30px;
+            background: #e9ecef;
+            border-radius: 15px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #28a745, #20c997);
+            width: 0%;
+            transition: width 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: 600;
+        }
+
+        .progress-text {
+            text-align: center;
+            margin-top: 10px;
+            font-weight: 500;
+            color: #495057;
+        }
+
+        .alert {
+            padding: 15px 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            display: none;
+        }
+
+        .alert.show {
+            display: block;
+        }
+
+        .alert-success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .alert-error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .alert-info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+
+        .log-container {
+            background: #212529;
+            color: #0f0;
+            padding: 15px;
+            border-radius: 8px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9em;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        .log-entry {
+            margin-bottom: 5px;
+        }
+
+        .log-entry.error {
+            color: #ff6b6b;
+        }
+
+        .log-entry.success {
+            color: #51cf66;
+        }
+
+        .log-entry.info {
+            color: #74c0fc;
+        }
+
+        small {
+            color: #6c757d;
+            font-size: 0.85em;
+        }
+
+        .video-list {
+            margin-top: 20px;
+        }
+
+        .video-item {
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            margin-bottom: 10px;
+            border-left: 4px solid #3498db;
+        }
+
+        .video-item h4 {
+            color: #2c3e50;
+            margin-bottom: 5px;
+        }
+
+        .video-item p {
+            color: #6c757d;
+            font-size: 0.9em;
+            margin-bottom: 5px;
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 0.8em;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .status-queued {
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        .status-processing {
+            background: #cfe2ff;
+            color: #084298;
+        }
+
+        .status-completed {
+            background: #d1e7dd;
+            color: #0f5132;
+        }
+
+        .status-failed {
+            background: #f8d7da;
+            color: #842029;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Test Video Upload to MinIO</h1>
+            <p>Test chunked video upload qua API và lưu trữ trên MinIO</p>
+        </div>
+
+        <div class="content">
+            <div id="alert" class="alert"></div>
+
+            <!-- Config Section -->
+            <div class="section">
+                <h2>Cấu hình</h2>
+                <div class="form-group">
+                    <label for="jwtToken">JWT Token *</label>
+                    <input type="text" id="jwtToken" placeholder="Nhập JWT token của bạn...">
+                    <small>Token để authenticate với API</small>
+                </div>
+                <div class="form-group">
+                    <label for="apiBase">API Base URL</label>
+                    <input type="text" id="apiBase" value="http://localhost:5000">
+                    <small>URL base của API server</small>
+                </div>
+            </div>
+
+            <!-- Upload Section -->
+            <div class="section">
+                <h2>Upload Video</h2>
+                
+                <div class="form-group">
+                    <label>Chọn file video *</label>
+                    <div class="file-input-wrapper" id="fileInputWrapper">
+                        <input type="file" id="videoFile" accept="video/*">
+                        <div>
+                            <p style="font-size: 3em; margin-bottom: 10px;">📹</p>
+                            <p style="font-weight: 600;">Kéo thả video vào đây hoặc click để chọn file</p>
+                            <p style="color: #6c757d; margin-top: 8px;">Hỗ trợ: MP4, AVI, MOV, MKV</p>
+                        </div>
+                    </div>
+                    <div class="file-info" id="fileInfo"></div>
+                </div>
+
+                <div class="form-group">
+                    <label for="title">Tiêu đề video *</label>
+                    <input type="text" id="title" placeholder="Nhập tiêu đề video...">
+                </div>
+
+                <div class="form-group">
+                    <label for="description">Mô tả</label>
+                    <textarea id="description" rows="3" placeholder="Nhập mô tả video..."></textarea>
+                </div>
+
+                <div class="form-group">
+                    <label for="category">Danh mục *</label>
+                    <select id="category">
+                        <option value="technology">Technology</option>
+                        <option value="education">Education</option>
+                        <option value="entertainment">Entertainment</option>
+                        <option value="business">Business</option>
+                        <option value="health">Health</option>
+                        <option value="lifestyle">Lifestyle</option>
+                        <option value="science">Science</option>
+                        <option value="sports">Sports</option>
+                        <option value="travel">Travel</option>
+                        <option value="other">Other</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="tags">Tags (phân cách bằng dấu phẩy)</label>
+                    <input type="text" id="tags" placeholder="tag1, tag2, tag3">
+                </div>
+
+                <div class="form-group">
+                    <label for="visibility">Visibility</label>
+                    <select id="visibility">
+                        <option value="public">Public</option>
+                        <option value="private">Private</option>
+                        <option value="unlisted">Unlisted</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="chunkSize">Chunk Size (MB)</label>
+                    <select id="chunkSize">
+                        <option value="1">1 MB (test)</option>
+                        <option value="5" selected>5 MB (recommended)</option>
+                        <option value="10">10 MB</option>
+                        <option value="20">20 MB</option>
+                    </select>
+                </div>
+
+                <div class="progress-container" id="progressContainer">
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="progressFill">0%</div>
+                    </div>
+                    <div class="progress-text" id="progressText"></div>
+                </div>
+
+                <div style="margin-top: 20px;">
+                    <button type="button" class="btn btn-primary" id="uploadBtn">🚀 Upload Video</button>
+                    <button type="button" class="btn btn-secondary" id="loadVideosBtn">📋 Load Videos</button>
+                </div>
+            </div>
+
+            <!-- Log Section -->
+            <div class="section">
+                <h2>Console Log</h2>
+                <div class="log-container" id="logContainer">
+                    <div class="log-entry info">Sẵn sàng để upload...</div>
+                </div>
+            </div>
+
+            <!-- Videos List -->
+            <div class="section">
+                <h2>Danh sách Videos</h2>
+                <div class="video-list" id="videoList">
+                    <p style="color: #6c757d;">Chưa có video nào. Click "Load Videos" để tải danh sách.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // DOM Elements
+        const jwtTokenInput = document.getElementById('jwtToken');
+        const apiBaseInput = document.getElementById('apiBase');
+        const videoFileInput = document.getElementById('videoFile');
+        const fileInputWrapper = document.getElementById('fileInputWrapper');
+        const fileInfo = document.getElementById('fileInfo');
+        const titleInput = document.getElementById('title');
+        const descriptionInput = document.getElementById('description');
+        const categoryInput = document.getElementById('category');
+        const tagsInput = document.getElementById('tags');
+        const visibilityInput = document.getElementById('visibility');
+        const chunkSizeInput = document.getElementById('chunkSize');
+        const uploadBtn = document.getElementById('uploadBtn');
+        const loadVideosBtn = document.getElementById('loadVideosBtn');
+        const progressContainer = document.getElementById('progressContainer');
+        const progressFill = document.getElementById('progressFill');
+        const progressText = document.getElementById('progressText');
+        const alertDiv = document.getElementById('alert');
+        const logContainer = document.getElementById('logContainer');
+        const videoList = document.getElementById('videoList');
+
+        let selectedFile = null;
+
+        // Utility Functions
+        function log(message, type = 'info') {
+            const entry = document.createElement('div');
+            entry.className = `log-entry ${type}`;
+            entry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            logContainer.appendChild(entry);
+            logContainer.scrollTop = logContainer.scrollHeight;
+            console.log(message);
+        }
+
+        function showAlert(message, type = 'info') {
+            alertDiv.className = `alert alert-${type} show`;
+            alertDiv.textContent = message;
+            setTimeout(() => {
+                alertDiv.classList.remove('show');
+            }, 5000);
+        }
+
+        function formatBytes(bytes) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
+        }
+
+        function updateProgress(percent, text) {
+            progressFill.style.width = percent + '%';
+            progressFill.textContent = Math.round(percent) + '%';
+            progressText.textContent = text;
+        }
+
+        // File Selection
+        fileInputWrapper.addEventListener('click', () => {
+            videoFileInput.click();
+        });
+
+        videoFileInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                handleFileSelect(file);
+            }
+        });
+
+        // Drag and Drop
+        fileInputWrapper.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            fileInputWrapper.classList.add('dragover');
+        });
+
+        fileInputWrapper.addEventListener('dragleave', () => {
+            fileInputWrapper.classList.remove('dragover');
+        });
+
+        fileInputWrapper.addEventListener('drop', (e) => {
+            e.preventDefault();
+            fileInputWrapper.classList.remove('dragover');
+            const file = e.dataTransfer.files[0];
+            if (file && file.type.startsWith('video/')) {
+                videoFileInput.files = e.dataTransfer.files;
+                handleFileSelect(file);
+            } else {
+                showAlert('Vui lòng chọn file video hợp lệ!', 'error');
+            }
+        });
+
+        function handleFileSelect(file) {
+            selectedFile = file;
+            fileInfo.innerHTML = `
+                <strong>File đã chọn:</strong><br>
+                📄 ${file.name}<br>
+                💾 Kích thước: ${formatBytes(file.size)}<br>
+                🎬 Loại: ${file.type}
+            `;
+            fileInfo.classList.add('show');
+            log(`File selected: ${file.name} (${formatBytes(file.size)})`, 'success');
+        }
+
+        // Chunked Upload Functions
+        async function initChunkedUpload(metadata) {
+            const apiBase = apiBaseInput.value.trim();
+            const token = jwtTokenInput.value.trim();
+
+            const response = await fetch(`${apiBase}/api/uploads/videos/chunk/init`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify(metadata)
+            });
+
+            if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.error || 'Failed to initialize upload');
+            }
+
+            return await response.json();
+        }
+
+        async function uploadChunk(uploadId, chunkIndex, chunkData) {
+            const apiBase = apiBaseInput.value.trim();
+            const token = jwtTokenInput.value.trim();
+
+            const response = await fetch(`${apiBase}/api/uploads/videos/chunk/${uploadId}?index=${chunkIndex}`, {
+                method: 'PUT',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/octet-stream'
+                },
+                body: chunkData
+            });
+
+            if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.error || 'Failed to upload chunk');
+            }
+
+            return await response.json();
+        }
+
+        async function completeChunkedUpload(uploadId) {
+            const apiBase = apiBaseInput.value.trim();
+            const token = jwtTokenInput.value.trim();
+
+            const response = await fetch(`${apiBase}/api/uploads/videos/chunk/${uploadId}/complete`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
+            });
+
+            if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.error || 'Failed to complete upload');
+            }
+
+            return await response.json();
+        }
+
+        // Main Upload Function
+        uploadBtn.addEventListener('click', async (event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            
+            try {
+                // Validate inputs
+                if (!jwtTokenInput.value.trim()) {
+                    showAlert('Vui lòng nhập JWT token!', 'error');
+                    return;
+                }
+
+                if (!selectedFile) {
+                    showAlert('Vui lòng chọn file video!', 'error');
+                    return;
+                }
+
+                if (!titleInput.value.trim()) {
+                    showAlert('Vui lòng nhập tiêu đề video!', 'error');
+                    return;
+                }
+
+                // Disable upload button
+                uploadBtn.disabled = true;
+                progressContainer.classList.add('show');
+
+                log('🚀 Bắt đầu upload video...', 'info');
+                updateProgress(0, 'Đang khởi tạo upload...');
+
+                // Prepare metadata
+                const chunkSizeMB = parseInt(chunkSizeInput.value);
+                const chunkSize = chunkSizeMB * 1024 * 1024;
+                const totalChunks = Math.ceil(selectedFile.size / chunkSize);
+
+                const metadata = {
+                    filename: selectedFile.name,
+                    contentType: selectedFile.type || 'video/mp4',
+                    totalSize: selectedFile.size,
+                    chunkSize: chunkSize,
+                    title: titleInput.value.trim(),
+                    description: descriptionInput.value.trim(),
+                    category: categoryInput.value,
+                    tags: tagsInput.value.trim(),
+                    visibility: visibilityInput.value,
+                    status: 'draft',
+                    useAdaptiveStorage: true
+                };
+
+                log(`📊 Total chunks: ${totalChunks}, Chunk size: ${chunkSizeMB}MB`, 'info');
+
+                // Initialize upload
+                log('📤 Initializing upload session...', 'info');
+                const initResult = await initChunkedUpload(metadata);
+                const uploadId = initResult.data.uploadId;
+                log(`✅ Upload session created: ${uploadId}`, 'success');
+
+                // Upload chunks
+                for (let i = 0; i < totalChunks; i++) {
+                    const start = i * chunkSize;
+                    const end = Math.min(start + chunkSize, selectedFile.size);
+                    const chunk = selectedFile.slice(start, end);
+
+                    log(`📦 Uploading chunk ${i + 1}/${totalChunks} (${formatBytes(chunk.size)})...`, 'info');
+                    
+                    await uploadChunk(uploadId, i, chunk);
+                    
+                    const progress = ((i + 1) / totalChunks) * 100;
+                    updateProgress(progress, `Uploaded ${i + 1}/${totalChunks} chunks`);
+                    log(`✅ Chunk ${i + 1}/${totalChunks} uploaded successfully`, 'success');
+                }
+
+                // Complete upload
+                log('🔄 Finalizing upload...', 'info');
+                updateProgress(100, 'Đang hoàn tất upload...');
+                
+                const result = await completeChunkedUpload(uploadId);
+                
+                log(`🎉 Upload completed successfully!`, 'success');
+                log(`📝 Content ID: ${result.data.contentId}`, 'success');
+                log(`⚙️ Job ID: ${result.data.jobId}`, 'success');
+                
+                showAlert('✅ Video uploaded successfully to MinIO!', 'success');
+                updateProgress(100, 'Upload hoàn tất!');
+
+                // Reset form
+                videoFileInput.value = '';
+                selectedFile = null;
+                fileInfo.classList.remove('show');
+                titleInput.value = '';
+                descriptionInput.value = '';
+                tagsInput.value = '';
+
+                // Load videos
+                setTimeout(() => loadVideos(), 1000);
+
+            } catch (error) {
+                log(`❌ Upload failed: ${error.message}`, 'error');
+                showAlert(`Upload failed: ${error.message}`, 'error');
+            } finally {
+                uploadBtn.disabled = false;
+            }
+        });
+
+        // Load Videos
+        loadVideosBtn.addEventListener('click', (event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            loadVideos();
+        });
+
+        async function loadVideos() {
+            try {
+                const apiBase = apiBaseInput.value.trim();
+                const token = jwtTokenInput.value.trim();
+
+                if (!token) {
+                    showAlert('Vui lòng nhập JWT token!', 'error');
+                    return;
+                }
+
+                log('📋 Loading videos...', 'info');
+
+                const response = await fetch(`${apiBase}/api/content/videos?status=all`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+
+                if (!response.ok) {
+                    throw new Error('Failed to load videos');
+                }
+
+                const data = await response.json();
+                const videos = data.data;
+
+                if (!videos || videos.length === 0) {
+                    videoList.innerHTML = '<p style="color: #6c757d;">Chưa có video nào.</p>';
+                    log('📋 No videos found', 'info');
+                    return;
+                }
+
+                videoList.innerHTML = videos.map(video => `
+                    <div class="video-item">
+                        <h4>${video.title}</h4>
+                        <p><strong>ID:</strong> ${video.id}</p>
+                        <p><strong>Category:</strong> ${video.category}</p>
+                        <p><strong>Status:</strong> 
+                            <span class="status-badge status-${video.processingStatus || 'queued'}">
+                                ${video.processingStatus || 'queued'}
+                            </span>
+                        </p>
+                        <p><strong>Created:</strong> ${new Date(video.createdAt).toLocaleString('vi-VN')}</p>
+                        ${video.metadata?.sourceObjectKey ? `<p><strong>MinIO Key:</strong> ${video.metadata.sourceObjectKey}</p>` : ''}
+                    </div>
+                `).join('');
+
+                log(`✅ Loaded ${videos.length} videos`, 'success');
+
+            } catch (error) {
+                log(`❌ Failed to load videos: ${error.message}`, 'error');
+                showAlert(`Failed to load videos: ${error.message}`, 'error');
+            }
+        }
+
+        // Initialize
+        log('✅ Page loaded successfully', 'success');
+        log('📝 Enter JWT token and select a video to upload', 'info');
+    </script>
+</body>
+</html>
+
