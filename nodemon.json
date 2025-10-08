@@ -1,0 +1,23 @@
+{
+  "watch": ["src", "prisma"],
+  "ignore": [
+    "node_modules",
+    "uploads/**",
+    "temp/**",
+    "tmp/**",
+    "*.log",
+    ".git",
+    ".env*",
+    "logs/**",
+    "public/**",
+    "*.md",
+    "docs/**",
+    "scripts/**",
+    "test*",
+    "*.test.js",
+    "**/*.test.js",
+    "**/*.spec.js"
+  ],
+  "ext": "js,json,hbs",
+  "delay": 500
+}
