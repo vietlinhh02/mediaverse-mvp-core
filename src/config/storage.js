@@ -18,14 +18,14 @@ const storageConfig = {
 
   limits: {
     fileSize: {
-      video: 100 * 1024 * 1024, // 100MB
+      // video: 100 * 1024 * 1024, // 100MB - removed for rebuild
       image: 10 * 1024 * 1024, // 10MB
       document: 50 * 1024 * 1024 // 50MB
     }
   },
 
   allowedTypes: {
-    video: ['video/mp4', 'video/webm', 'video/avi', 'video/quicktime'],
+    // video: ['video/mp4', 'video/webm', 'video/avi', 'video/quicktime'], // removed for rebuild
     image: ['image/jpeg', 'image/png', 'image/gif', 'image/webp'],
     document: ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document']
   }
@@ -57,7 +57,7 @@ const createMulterConfig = (fileType) => multer({
 
 // File upload configurations
 const uploadConfigs = {
-  video: createMulterConfig('video'),
+  // video: createMulterConfig('video'), // removed for rebuild
   image: createMulterConfig('image'),
   document: createMulterConfig('document'),
   avatar: multer({

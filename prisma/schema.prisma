@@ -121,6 +121,10 @@ model Content {
   metadata       Json      @default("{}")
   stats          Json      @default("{}")
 
+  // Video upload and processing status fields
+  uploadStatus   String?   @default("pending") // pending, uploaded, completed, failed
+  processingStatus String? @default("pending") // pending, queued, processing, completed, failed
+
   // Recommendation system fields
   views          Int       @default(0) // Total views count
   likesCount     Int       @default(0) // Cached likes count for performance

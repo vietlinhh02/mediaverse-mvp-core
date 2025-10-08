@@ -214,12 +214,10 @@ const session = {
 
 // Queue helper functions
 const queue = {
-  async push(queueName, data, priority = 0) {
+  async push(queueName, data) {
     try {
-      await redisQueue.zAdd(`queue:${queueName}`, {
-        score: Date.now() + priority,
-        value: JSON.stringify(data)
-      });
+      // Use LPUSH to add to a list for BLPOP
+      await redisQueue.lPush(`list_queue:${queueName}`, JSON.stringify(data));
       return true;
     } catch (error) {
       console.error('Queue push error:', error);
@@ -229,8 +227,9 @@ const queue = {
 
   async pop(queueName) {
     try {
-      const result = await redisQueue.zPopMin(`queue:${queueName}`);
-      return result ? JSON.parse(result.value) : null;
+      // Use RPOP for FIFO behavior
+      const result = await redisQueue.rPop(`list_queue:${queueName}`);
+      return result ? JSON.parse(result) : null;
     } catch (error) {
       console.error('Queue pop error:', error);
       return null;
@@ -239,10 +238,27 @@ const queue = {
 
   async length(queueName) {
     try {
-      return await redisQueue.zCard(`queue:${queueName}`);
+      // Use LLEN for list length
+      return await redisQueue.lLen(`list_queue:${queueName}`);
     } catch (error) {
       console.error('Queue length error:', error);
       return 0;
+    }
+  },
+
+  async popBlocking(queueName, timeout = 30) {
+    try {
+      // Use BLPOP for efficient long polling
+      // Note: `zPopMin` doesn't have a blocking version, so we switch to lists for this
+      const result = await redisQueue.blPop(`list_queue:${queueName}`, timeout);
+      return result ? JSON.parse(result.element) : null;
+    } catch (error) {
+      // Timeouts will throw errors, which is expected. Only log other errors.
+      if (error.message.toLowerCase().includes('timeout')) {
+        return null;
+      }
+      console.error('Queue popBlocking error:', error);
+      return null;
     }
   }
 };

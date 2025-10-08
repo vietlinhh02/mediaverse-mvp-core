@@ -436,6 +436,118 @@ const options = {
               example: 8
             }
           }
+        },
+        Content: {
+          type: 'object',
+          properties: {
+            id: {
+              type: 'string',
+              description: 'Content unique identifier'
+            },
+            type: {
+              type: 'string',
+              enum: ['video', 'article', 'document'],
+              description: 'Content type'
+            },
+            title: {
+              type: 'string',
+              description: 'Content title'
+            },
+            description: {
+              type: 'string',
+              description: 'Content description'
+            },
+            body: {
+              type: 'string',
+              description: 'Content body (article content)'
+            },
+            content: {
+              type: 'string',
+              description: 'Content body (alias for body)'
+            },
+            category: {
+              type: 'string',
+              description: 'Content category'
+            },
+            tags: {
+              type: 'array',
+              items: { type: 'string' },
+              description: 'Content tags'
+            },
+            visibility: {
+              type: 'string',
+              enum: ['public', 'private', 'unlisted'],
+              description: 'Content visibility'
+            },
+            status: {
+              type: 'string',
+              enum: ['draft', 'published', 'archived'],
+              description: 'Content status'
+            },
+            featuredImage: {
+              type: 'string',
+              description: 'Featured image URL'
+            },
+            authorId: {
+              type: 'string',
+              description: 'Author ID'
+            },
+            channelId: {
+              type: 'string',
+              description: 'Channel ID'
+            },
+            createdAt: {
+              type: 'string',
+              format: 'date-time',
+              description: 'Creation timestamp'
+            },
+            updatedAt: {
+              type: 'string',
+              format: 'date-time',
+              description: 'Last update timestamp'
+            },
+            publishedAt: {
+              type: 'string',
+              format: 'date-time',
+              description: 'Publication timestamp'
+            },
+            author: {
+              type: 'object',
+              properties: {
+                id: { type: 'string' },
+                username: { type: 'string' },
+                profile: {
+                  type: 'object',
+                  properties: {
+                    displayName: { type: 'string' },
+                    avatarUrl: { type: 'string' }
+                  }
+                }
+              }
+            },
+            channel: {
+              type: 'object',
+              properties: {
+                id: { type: 'string' },
+                name: { type: 'string' }
+              }
+            },
+            stats: {
+              type: 'object',
+              description: 'Content statistics'
+            },
+            metadata: {
+              type: 'object',
+              description: 'Content metadata (processing info, duration, etc.)'
+            },
+            _count: {
+              type: 'object',
+              properties: {
+                likes: { type: 'integer' },
+                comments: { type: 'integer' }
+              }
+            }
+          }
         }
       },
       responses: {
