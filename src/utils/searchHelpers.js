@@ -11,10 +11,10 @@ function mapSortByToMeiliSearch(sortBy) {
   const sortMap = {
     // Relevance is the default MeiliSearch ranking, no sort needed
     relevance: undefined,
-    
+
     // Recent: sort by creation date descending
     recent: ['createdAt:desc'],
-    
+
     // Popular: MeiliSearch doesn't have built-in popularity ranking
     // We'll need to add a popularity score field or use a custom ranking rule
     // For now, sort by creation date as fallback
@@ -50,7 +50,7 @@ function buildMeiliSearchFilters(params) {
 
   if (params.tags && params.tags.length > 0) {
     // MeiliSearch uses 'IN' for array membership
-    const tagsFilter = params.tags.map(tag => `tags = ${tag}`).join(' OR ');
+    const tagsFilter = params.tags.map((tag) => `tags = ${tag}`).join(' OR ');
     filters.push(`(${tagsFilter})`);
   }
 

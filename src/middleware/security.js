@@ -58,17 +58,18 @@ const createRateLimit = (windowMs, max, message, skipSuccessfulRequests = false)
   }
 });
 
-// General rate limiting (100 requests per 15 minutes per IP)
+// General rate limiting (more lenient defaults for better UX, configurable via env)
 const generalRateLimit = createRateLimit(
-  15 * 60 * 1000, // 15 minutes
-  100,
-  'Too many requests from this IP, please try again later'
+  parseInt(process.env.RL_GENERAL_WINDOW_MS || String(5 * 60 * 1000), 10), // default 5 minutes
+  parseInt(process.env.RL_GENERAL_MAX || '300', 10), // default 300 reqs
+  'Too many requests from this IP, please try again later',
+  true // skip successful requests to permit frequent refreshes
 );
 
-// Authenticated user rate limiting (1000 requests per hour)
+// Authenticated user rate limiting (more burst-friendly defaults; configurable)
 const authenticatedRateLimit = createRateLimit(
-  60 * 60 * 1000, // 1 hour
-  1000,
+  parseInt(process.env.RL_AUTHED_WINDOW_MS || String(10 * 60 * 1000), 10), // default 10 minutes
+  parseInt(process.env.RL_AUTHED_MAX || '1000', 10), // default 1000
   'Too many requests, please try again later',
   true // Skip successful requests
 );
@@ -80,10 +81,10 @@ const strictRateLimit = createRateLimit(
   'Too many attempts, please try again later'
 );
 
-// Auth endpoints rate limiting
+// Auth endpoints rate limiting (slightly relaxed; configurable)
 const authRateLimit = createRateLimit(
-  15 * 60 * 1000, // 15 minutes
-  10,
+  parseInt(process.env.RL_AUTH_WINDOW_MS || String(5 * 60 * 1000), 10), // default 5 minutes
+  parseInt(process.env.RL_AUTH_MAX || '30', 10), // default 30
   'Too many authentication attempts, please try again later'
 );
 
