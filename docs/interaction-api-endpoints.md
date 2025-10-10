@@ -633,7 +633,6 @@ Get detailed analytics for content shares.
 
 ---
 
-## Community Posts
 
 ### 1. Create Community Post
 **POST** `/api/content/community/posts`

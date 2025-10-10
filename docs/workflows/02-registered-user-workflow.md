@@ -92,21 +92,8 @@ Hệ thống học hỏi từ hành vi của người dùng để cung cấp tr�
   2. Người dùng có thể vào cài đặt để quản lý sở thích của mình: cập nhật toàn bộ (`PUT`), cập nhật một phần (`PATCH`), hoặc xóa toàn bộ (`DELETE`).
   3. Mỗi khi người dùng xem, thích, hoặc chia sẻ một nội dung, một sự kiện sẽ được gửi đến `POST /api/recommendations/track-interaction` để cập nhật mô hình đề xuất.
 
-## 5. Các Tính năng Cộng đồng
+## 5. Khám phá qua Hashtag
 
-Ngoài các tương tác cơ bản, người dùng có thể tham gia sâu hơn vào cộng đồng.
-
-### a. Bài đăng Cộng đồng (Community Posts)
-- **Mục tiêu:** Cho phép người dùng (thường là người tạo nội dung) đăng các cập nhật ngắn, thông báo, hoặc cuộc thăm dò ý kiến cho những người theo dõi họ.
-- **Endpoints:**
-    - `POST /api/content/community/posts`
-    - `GET /api/content/community/posts`
-- **Các bước:**
-    1. Người tạo nội dung vào tab "Cộng đồng" trên kênh của mình và tạo một bài đăng mới.
-    2. Bài đăng này sẽ xuất hiện trên feed của những người theo dõi họ.
-    3. Người dùng có thể xem và tương tác (thích, bình luận) với các bài đăng này.
-
-### b. Khám phá qua Hashtag
 - **Mục tiêu:** Cho phép người dùng tìm kiếm và khám phá nội dung dựa trên các chủ đề chung thông qua hashtags.
 - **Endpoints:**
     - `GET /api/content/hashtags`
