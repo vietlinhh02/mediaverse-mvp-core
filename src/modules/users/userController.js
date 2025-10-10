@@ -363,7 +363,77 @@ class UserController {
 
   /**
    * @swagger
-   * /api/users/search:
+   * /api/users/profile/upload-cover-image:
+   *   post:
+   *     summary: Upload user profile cover image
+   *     tags: [Users]
+   *     security:
+   *       - bearerAuth: []
+   *     requestBody:
+   *       required: true
+   *       content:
+   *         multipart/form-data:
+   *           schema:
+   *             type: object
+   *             properties:
+   *               coverImage:
+   *                 type: string
+   *                 format: binary
+   *                 description: Cover image file (max 10MB, JPEG/PNG/WebP/GIF)
+   *     responses:
+   *       200:
+   *         description: Cover image uploaded successfully
+   *         content:
+   *           application/json:
+   *             schema:
+   *               $ref: '#/components/schemas/UserProfile'
+   *       400:
+   *         description: No file provided or invalid file type/size
+   *       401:
+   *         description: Authentication required
+   */
+  async uploadCoverImage(req, res) {
+    try {
+      const { userId } = req.user;
+
+      if (!req.file) {
+        return res.status(400).json({
+          error: 'No image file provided',
+          code: 'NO_FILE'
+        });
+      }
+
+      // Service will handle validation and processing
+      const result = await userService.uploadCoverImage(userId, req.file);
+
+      logger.info({
+        message: 'Cover image uploaded successfully',
+        userId,
+        filename: req.file.originalname
+      });
+
+      res.json({
+        success: true,
+        data: result.profile,
+        message: 'Cover image uploaded successfully'
+      });
+    } catch (error) {
+      logger.error({
+        message: 'Upload cover image error',
+        error: error.message,
+        userId: req.user?.userId,
+        filename: req.file?.originalname
+      });
+
+      res.status(500).json({
+        error: 'Failed to upload cover image',
+        code: 'INTERNAL_ERROR'
+      });
+    }
+  }
+
+  /**
+   * @swagger
    *   get:
    *     summary: Search users
    *     tags: [Users]

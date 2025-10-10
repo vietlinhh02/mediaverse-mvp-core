@@ -1,6 +1,7 @@
 // User service with business logic and Redis caching
 const { prisma } = require('../../config/database');
 const { cache } = require('../../config/redis');
+const searchService = require('../../services/searchService');
 const sharp = require('sharp');
 const path = require('path');
 const fs = require('fs').promises;
@@ -49,6 +50,26 @@ class UserService {
       // Cache the profile
       await cache.set(`profile:${userId}`, profile, UserService.CACHE_TTL.PROFILE);
 
+      // Index user in Meilisearch
+      try {
+        const userWithProfile = await prisma.user.findUnique({ where: { id: userId }, include: { profile: true } });
+        if (userWithProfile) {
+          await searchService.addOrUpdateDocuments('users', [{
+            id: userWithProfile.id,
+            username: userWithProfile.username,
+            displayName: userWithProfile.profile?.displayName,
+            bio: userWithProfile.profile?.bio,
+            avatarUrl: userWithProfile.profile?.avatarUrl,
+            isVerified: userWithProfile.profile?.isVerified,
+            role: userWithProfile.role,
+            status: userWithProfile.status,
+            createdAt: Math.floor(new Date(userWithProfile.createdAt).getTime() / 1000)
+          }]);
+        }
+      } catch (e) {
+        // Do not block on search indexing
+      }
+
       return profile;
     } catch (error) {
       throw new Error(`Failed to create profile: ${error.message}`);
@@ -81,6 +102,26 @@ class UserService {
       // Update cache
       await cache.set(`profile:${userId}`, profile, UserService.CACHE_TTL.PROFILE);
 
+      // Re-index user in Meilisearch
+      try {
+        const userWithProfile = await prisma.user.findUnique({ where: { id: userId }, include: { profile: true } });
+        if (userWithProfile) {
+          await searchService.addOrUpdateDocuments('users', [{
+            id: userWithProfile.id,
+            username: userWithProfile.username,
+            displayName: userWithProfile.profile?.displayName,
+            bio: userWithProfile.profile?.bio,
+            avatarUrl: userWithProfile.profile?.avatarUrl,
+            isVerified: userWithProfile.profile?.isVerified,
+            role: userWithProfile.role,
+            status: userWithProfile.status,
+            createdAt: Math.floor(new Date(userWithProfile.createdAt).getTime() / 1000)
+          }]);
+        }
+      } catch (e) {
+        // ignore indexing errors
+      }
+
       return profile;
     } catch (error) {
       if (error.code === 'P2025') {
@@ -100,7 +141,7 @@ class UserService {
       }
 
       // Fetch from database
-      const profile = await prisma.profile.findUnique({
+      let profile = await prisma.profile.findUnique({
         where: { userId },
         include: {
           user: {
@@ -117,7 +158,23 @@ class UserService {
       });
 
       if (!profile) {
-        throw new Error('Profile not found');
+        // Auto-create profile if missing
+        const user = await prisma.user.findUnique({
+          where: { id: userId },
+          select: { id: true, username: true, email: true, role: true, status: true, createdAt: true }
+        });
+
+        if (!user) {
+          throw new Error('Profile not found');
+        }
+
+        profile = await this.createProfile(userId, {
+          displayName: user.username,
+          bio: null,
+          location: null,
+          website: null,
+          preferences: {},
+        });
       }
 
       // Cache the result
@@ -125,6 +182,10 @@ class UserService {
 
       return profile;
     } catch (error) {
+      // Preserve not-found error so controller can map to 404
+      if (error.message === 'Profile not found') {
+        throw error;
+      }
       throw new Error(`Failed to get profile: ${error.message}`);
     }
   }
@@ -132,43 +193,43 @@ class UserService {
   // Upload and process avatar
   async uploadAvatar(userId, file) {
     try {
-      const uploadDir = 'uploads/avatars';
-      await fs.mkdir(uploadDir, { recursive: true });
-
-      const filename = `${userId}-${Date.now()}`;
+      const { putObjectBuffer } = require('../../services/media/minioMediaStore');
+      const filenameBase = `${userId}-${Date.now()}`;
       const sizes = [
         { suffix: '-200', width: 200, height: 200 },
         { suffix: '-400', width: 400, height: 400 }
       ];
-
       const avatarUrls = {};
-
-      // Process and save different sizes
       for (const size of sizes) {
-        const outputPath = path.join(uploadDir, `${filename}${size.suffix}.jpg`);
-
-        await sharp(file.buffer)
-          .resize(size.width, size.height, {
-            fit: 'cover',
-            position: 'center'
-          })
+        const resized = await sharp(file.buffer)
+          .resize(size.width, size.height, { fit: 'cover', position: 'center' })
           .jpeg({ quality: 85 })
-          .toFile(outputPath);
-
-        avatarUrls[`${size.width}x${size.height}`] = `/uploads/avatars/${filename}${size.suffix}.jpg`;
+          .toBuffer();
+        const key = `avatars/${userId}/${filenameBase}${size.suffix}.jpg`;
+        const url = await putObjectBuffer(key, resized, 'image/jpeg');
+        avatarUrls[`${size.width}x${size.height}`] = url;
       }
-
-      // Update profile with avatar URL
-      const profile = await this.updateProfile(userId, {
-        avatarUrl: avatarUrls['200x200'] // Use 200x200 as default
-      });
-
-      return {
-        profile,
-        avatarUrls
-      };
+      const profile = await this.updateProfile(userId, { avatarUrl: avatarUrls['200x200'] });
+      return { profile, avatarUrls };
     } catch (error) {
       throw new Error(`Failed to upload avatar: ${error.message}`);
+    }
+  }
+
+  // Upload and process cover image
+  async uploadCoverImage(userId, file) {
+    try {
+      const { putObjectBuffer } = require('../../services/media/minioMediaStore');
+      const processed = await sharp(file.buffer)
+        .resize(1500, 500, { fit: 'cover', position: 'center' })
+        .jpeg({ quality: 90 })
+        .toBuffer();
+      const key = `covers/${userId}/${userId}-${Date.now()}.jpg`;
+      const coverImageUrl = await putObjectBuffer(key, processed, 'image/jpeg');
+      const profile = await this.updateProfile(userId, { coverImageUrl });
+      return { profile, coverImageUrl };
+    } catch (error) {
+      throw new Error(`Failed to upload cover image: ${error.message}`);
     }
   }
 
@@ -542,228 +603,6 @@ class UserService {
       return result;
     } catch (error) {
       throw new Error(`Failed to get following: ${error.message}`);
-    }
-  }
-
-  // Create channel
-  async createChannel(userId, channelData) {
-    try {
-      const channel = await prisma.channel.create({
-        data: {
-          ownerId: userId,
-          name: channelData.name,
-          description: channelData.description || null,
-          category: channelData.category,
-          tags: channelData.tags || []
-        },
-        include: {
-          owner: {
-            include: {
-              profile: {
-                select: {
-                  displayName: true,
-                  avatarUrl: true
-                }
-              }
-            }
-          }
-        }
-      });
-
-      // Clear user profile cache to update channel count
-      await cache.del(`profile:${userId}`);
-
-      return channel;
-    } catch (error) {
-      if (error.code === 'P2002') {
-        throw new Error('Channel name already exists');
-      }
-      throw new Error(`Failed to create channel: ${error.message}`);
-    }
-  }
-
-  // Update channel
-  async updateChannel(channelId, userId, data) {
-    try {
-      // Verify ownership
-      const channel = await prisma.channel.findUnique({
-        where: { id: channelId },
-        select: { ownerId: true }
-      });
-
-      if (!channel) {
-        throw new Error('Channel not found');
-      }
-
-      if (channel.ownerId !== userId) {
-        throw new Error('Not authorized to update this channel');
-      }
-
-      const updatedChannel = await prisma.channel.update({
-        where: { id: channelId },
-        data: {
-          ...data,
-          updatedAt: new Date()
-        },
-        include: {
-          owner: {
-            include: {
-              profile: {
-                select: {
-                  displayName: true,
-                  avatarUrl: true
-                }
-              }
-            }
-          }
-        }
-      });
-
-      return updatedChannel;
-    } catch (error) {
-      throw new Error(`Failed to update channel: ${error.message}`);
-    }
-  }
-
-  // Upload and process channel banner
-  async uploadChannelBanner(channelId, userId, file) {
-    try {
-      // Verify ownership
-      const channel = await prisma.channel.findUnique({
-        where: { id: channelId },
-        select: { ownerId: true }
-      });
-
-      if (!channel) {
-        throw new Error('Channel not found');
-      }
-
-      if (channel.ownerId !== userId) {
-        throw new Error('Not authorized to upload a banner for this channel');
-      }
-
-      const tempDir = 'uploads/temp';
-      await fs.mkdir(tempDir, { recursive: true });
-
-      const filename = `${channelId}-${uuidv7()}.jpg`;
-      const tempFilePath = path.join(tempDir, filename);
-
-      // Resize and save temporarily
-      await sharp(file.buffer)
-        .resize(1546, 423, {
-          fit: 'cover',
-          position: 'center'
-        })
-        .jpeg({ quality: 90 })
-        .toFile(tempFilePath);
-
-      // S3 upload removed - will be rebuilt from scratch
-      // For now, just use local file path
-      const bannerImageUrl = `/uploads/banners/channel/${channelId}/${filename}`;
-      
-      // Move file to final location
-      const finalPath = path.join(process.cwd(), 'uploads', 'banners', 'channel', channelId);
-      await fs.mkdir(finalPath, { recursive: true });
-      await fs.rename(tempFilePath, path.join(finalPath, filename));
-
-      // Update channel with banner URL
-      const updatedChannel = await this.updateChannel(channelId, userId, {
-        bannerImageUrl
-      });
-
-      return {
-        channel: updatedChannel,
-        bannerImageUrl
-      };
-    } catch (error) {
-      throw new Error(`Failed to upload channel banner: ${error.message}`);
-    }
-  }
-
-  // Delete channel
-  async deleteChannel(channelId, userId) {
-    try {
-      // Verify ownership
-      const channel = await prisma.channel.findUnique({
-        where: { id: channelId },
-        select: { ownerId: true }
-      });
-
-      if (!channel) {
-        throw new Error('Channel not found');
-      }
-
-      if (channel.ownerId !== userId) {
-        throw new Error('Not authorized to delete this channel');
-      }
-
-      await prisma.channel.delete({
-        where: { id: channelId }
-      });
-
-      // Clear user profile cache
-      await cache.del(`profile:${userId}`);
-
-      return { success: true, message: 'Channel deleted successfully' };
-    } catch (error) {
-      throw new Error(`Failed to delete channel: ${error.message}`);
-    }
-  }
-
-  // Get user channels
-  async getUserChannels(userId) {
-    try {
-      const channels = await prisma.channel.findMany({
-        where: { ownerId: userId },
-        include: {
-          _count: {
-            select: { content: true }
-          }
-        },
-        orderBy: { createdAt: 'desc' }
-      });
-
-      return channels.map((channel) => ({
-        ...channel,
-        contentCount: channel._count.content
-      }));
-    } catch (error) {
-      throw new Error(`Failed to get user channels: ${error.message}`);
-    }
-  }
-
-  // Get channel by ID
-  async getChannel(channelId) {
-    try {
-      const channel = await prisma.channel.findUnique({
-        where: { id: channelId },
-        include: {
-          owner: {
-            include: {
-              profile: {
-                select: {
-                  displayName: true,
-                  avatarUrl: true
-                }
-              }
-            }
-          },
-          _count: {
-            select: { content: true }
-          }
-        }
-      });
-
-      if (!channel) {
-        throw new Error('Channel not found');
-      }
-
-      return {
-        ...channel,
-        contentCount: channel._count.content
-      };
-    } catch (error) {
-      throw new Error(`Failed to get channel: ${error.message}`);
     }
   }
 }

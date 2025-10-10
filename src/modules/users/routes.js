@@ -2,20 +2,16 @@
 const express = require('express');
 const UserController = require('./userController');
 const FollowController = require('./followController');
-const ChannelController = require('./channelController');
 const PreferencesController = require('./preferencesController');
 const ConnectedAccountsController = require('./connectedAccountsController');
 const { authenticateToken, optionalAuth } = require('../../middleware/auth');
 const { uploadMiddleware, handleUploadError } = require('../../middleware/upload');
 const {
   validateProfileUpdate,
-  validateChannelCreate,
-  validateChannelUpdate,
+  
   validateSearch,
   validatePagination,
-  validateChannelList,
   validateUserId,
-  validateChannelId,
   validateProvider
 } = require('./validation');
 
@@ -24,7 +20,6 @@ const router = express.Router();
 // Initialize controllers
 const userController = new UserController();
 const followController = new FollowController();
-const channelController = new ChannelController();
 const preferencesController = new PreferencesController();
 const connectedAccountsController = new ConnectedAccountsController();
 
@@ -55,9 +50,16 @@ router.post(
 router.post(
   '/upload-image',
   authenticateToken,
-  uploadMiddleware.imageMemory,
-  handleUploadError,
   userController.uploadAvatar.bind(userController)
+);
+
+// Route for uploading a cover image
+router.post(
+  '/profile/upload-cover-image',
+  authenticateToken,
+  uploadMiddleware.coverImageMemory,
+  handleUploadError,
+  userController.uploadCoverImage.bind(userController)
 );
 
 // User search routes
@@ -106,49 +108,7 @@ router.get(
   followController.getFollowStatus.bind(followController)
 );
 
-// Channel routes
-router.post(
-  '/channels',
-  authenticateToken,
-  validateChannelCreate,
-  channelController.createChannel.bind(channelController)
-);
-
-router.put(
-  '/channels/:id',
-  validateChannelId,
-  authenticateToken,
-  validateChannelUpdate,
-  channelController.updateChannel.bind(channelController)
-);
-
-router.get(
-  '/channels/:id',
-  validateChannelId,
-  optionalAuth,
-  channelController.getChannel.bind(channelController)
-);
-
-router.get(
-  '/:id/channels',
-  validateUserId,
-  optionalAuth,
-  channelController.getUserChannels.bind(channelController)
-);
-
-router.delete(
-  '/channels/:id',
-  validateChannelId,
-  authenticateToken,
-  channelController.deleteChannel.bind(channelController)
-);
-
-router.get(
-  '/channels',
-  validateChannelList,
-  optionalAuth,
-  channelController.getChannels.bind(channelController)
-);
+// Channel routes removed: channels are deprecated; content is uploaded to users
 
 // User preferences routes
 router.get(

@@ -26,70 +26,6 @@ const profileUpdateSchema = Joi.object({
   isPublic: Joi.boolean().default(true)
 });
 
-// Channel creation validation schema
-const channelCreateSchema = Joi.object({
-  name: Joi.string().min(3).max(100).trim()
-    .required()
-    .messages({
-      'string.min': 'Channel name must be at least 3 characters long',
-      'string.max': 'Channel name cannot exceed 100 characters',
-      'string.empty': 'Channel name is required',
-      'any.required': 'Channel name is required'
-    }),
-  description: Joi.string().max(500).allow('').trim()
-    .messages({
-      'string.max': 'Channel description cannot exceed 500 characters'
-    }),
-  category: Joi.string().valid(
-    'technology',
-    'education',
-    'entertainment',
-    'business',
-    'health',
-    'lifestyle',
-    'other'
-  ).required().messages({
-    'any.only': 'Category must be one of: technology, education, entertainment, business, health, lifestyle, other',
-    'any.required': 'Category is required'
-  }),
-  tags: Joi.array().items(
-    Joi.string().max(50).trim()
-  ).max(10).default([])
-    .messages({
-      'array.max': 'Maximum 10 tags allowed',
-      'string.max': 'Each tag cannot exceed 50 characters'
-    })
-});
-
-// Channel update validation schema
-const channelUpdateSchema = Joi.object({
-  name: Joi.string().min(3).max(100).trim()
-    .messages({
-      'string.min': 'Channel name must be at least 3 characters long',
-      'string.max': 'Channel name cannot exceed 100 characters'
-    }),
-  description: Joi.string().max(500).allow('').trim()
-    .messages({
-      'string.max': 'Channel description cannot exceed 500 characters'
-    }),
-  category: Joi.string().valid(
-    'technology',
-    'education',
-    'entertainment',
-    'business',
-    'health',
-    'lifestyle',
-    'other'
-  ).messages({
-    'any.only': 'Category must be one of: technology, education, entertainment, business, health, lifestyle, other'
-  }),
-  tags: Joi.array().items(
-    Joi.string().max(50).trim()
-  ).max(10).messages({
-    'array.max': 'Maximum 10 tags allowed',
-    'string.max': 'Each tag cannot exceed 50 characters'
-  })
-});
 
 // Search validation schema
 const searchSchema = Joi.object({
@@ -134,32 +70,6 @@ const paginationSchema = Joi.object({
     })
 });
 
-// Channel list validation schema
-const channelListSchema = Joi.object({
-  page: Joi.number().integer().min(1).default(1),
-  limit: Joi.number().integer().min(1).max(50)
-    .default(20),
-  category: Joi.string().valid(
-    'technology',
-    'education',
-    'entertainment',
-    'business',
-    'health',
-    'lifestyle',
-    'other'
-  ).messages({
-    'any.only': 'Category must be one of: technology, education, entertainment, business, health, lifestyle, other'
-  }),
-  search: Joi.string().max(100).trim().messages({
-    'string.max': 'Search query cannot exceed 100 characters'
-  }),
-  sortBy: Joi.string().valid('createdAt', 'updatedAt', 'name', 'subscribers').default('createdAt').messages({
-    'any.only': 'Sort by must be one of: createdAt, updatedAt, name, subscribers'
-  }),
-  sortOrder: Joi.string().valid('asc', 'desc').default('desc').messages({
-    'any.only': 'Sort order must be either asc or desc'
-  })
-});
 
 // User ID parameter validation
 const userIdSchema = Joi.object({
@@ -169,13 +79,6 @@ const userIdSchema = Joi.object({
   })
 });
 
-// Channel ID parameter validation
-const channelIdSchema = Joi.object({
-  id: Joi.string().required().messages({
-    'string.empty': 'Channel ID is required',
-    'any.required': 'Channel ID is required'
-  })
-});
 
 // Provider parameter validation
 const providerSchema = Joi.object({
@@ -215,36 +118,24 @@ const validate = (schema, property = 'body') => (req, res, next) => {
 
 // Export validation middleware functions
 const validateProfileUpdate = validate(profileUpdateSchema);
-const validateChannelCreate = validate(channelCreateSchema);
-const validateChannelUpdate = validate(channelUpdateSchema);
-const validateSearch = validate(searchSchema, 'query');
-const validatePagination = validate(paginationSchema, 'query');
-const validateChannelList = validate(channelListSchema, 'query');
-const validateUserId = validate(userIdSchema, 'params');
-const validateChannelId = validate(channelIdSchema, 'params');
-const validateProvider = validate(providerSchema, 'params');
+  const validateSearch = validate(searchSchema, 'query');
+  const validatePagination = validate(paginationSchema, 'query');
+  const validateUserId = validate(userIdSchema, 'params');
+  const validateProvider = validate(providerSchema, 'params');
 
 module.exports = {
   // Schemas
   profileUpdateSchema,
-  channelCreateSchema,
-  channelUpdateSchema,
   searchSchema,
   paginationSchema,
-  channelListSchema,
   userIdSchema,
-  channelIdSchema,
   providerSchema,
 
   // Middleware functions
   validate,
   validateProfileUpdate,
-  validateChannelCreate,
-  validateChannelUpdate,
   validateSearch,
   validatePagination,
-  validateChannelList,
   validateUserId,
-  validateChannelId,
   validateProvider
 };
