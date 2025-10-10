@@ -249,12 +249,6 @@ class SmartRecommendationService {
             }
           }
         },
-        channel: {
-          select: {
-            id: true,
-            name: true
-          }
-        },
         _count: {
           select: {
             likes: true,

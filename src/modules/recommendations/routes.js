@@ -108,6 +108,36 @@ router.get(
 
 /**
  * @swagger
+ * /api/recommendations/videos:
+ *   get:
+ *     tags: [Recommendations]
+ *     summary: Get recommended videos (trending)
+ *     parameters:
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *           maximum: 100
+ *           default: 20
+ *       - in: query
+ *         name: timeframe
+ *         schema:
+ *           type: string
+ *           enum: [1h, 6h, 24h, 7d, 30d]
+ *           default: "24h"
+ *     responses:
+ *       200:
+ *         description: Recommended videos retrieved successfully
+ */
+router.get(
+  '/videos',
+  validateTrendingContent, // Can reuse the same validation
+  RecommendationController.getVideoRecommendations
+);
+
+/**
+ * @swagger
  * /api/recommendations/search:
  *   get:
  *     tags: [Recommendations]

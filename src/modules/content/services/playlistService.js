@@ -16,21 +16,14 @@ const CACHE_TTL = 300; // 5 minutes
  */
 const _verifyPlaylistOwner = async (playlistId, userId) => {
   const playlist = await prisma.playlist.findUnique({
-    where: { id: playlistId },
-    include: {
-      channel: {
-        select: {
-          ownerId: true
-        }
-      }
-    }
+    where: { id: playlistId }
   });
 
   if (!playlist) {
     throw new AppError('Playlist not found', 404);
   }
 
-  if (playlist.channel.ownerId !== userId) {
+  if (playlist.userId !== userId) {
     throw new AppError('You are not authorized to perform this action', 403);
   }
 
@@ -45,18 +38,10 @@ class PlaylistService {
    * @returns {Promise<object>} The newly created playlist.
    */
   static async createPlaylist(userId, data) {
-    const channel = await prisma.channel.findFirst({
-      where: { ownerId: userId }
-    });
-
-    if (!channel) {
-      throw new AppError('User does not have a channel to create a playlist for.', 404);
-    }
-
     const playlist = await prisma.playlist.create({
       data: {
         ...data,
-        channelId: channel.id
+        userId
       }
     });
     return playlist;
@@ -75,7 +60,7 @@ class PlaylistService {
 
     if (cachedPlaylist) {
       // Check visibility from cache before returning
-      if (cachedPlaylist.visibility === 'PRIVATE' && (!userId || cachedPlaylist.channel.ownerId !== userId)) {
+      if (cachedPlaylist.visibility === 'PRIVATE' && (!userId || cachedPlaylist.userId !== userId)) {
         return null;
       }
       return cachedPlaylist;
@@ -89,13 +74,6 @@ class PlaylistService {
           include: {
             content: true // Include full content details for each item
           }
-        },
-        channel: {
-          select: {
-            id: true,
-            name: true,
-            ownerId: true
-          }
         }
       }
     });
@@ -105,7 +83,7 @@ class PlaylistService {
     }
 
     // Check visibility before caching and returning
-    if (playlist.visibility === 'PRIVATE' && (!userId || playlist.channel.ownerId !== userId)) {
+    if (playlist.visibility === 'PRIVATE' && (!userId || playlist.userId !== userId)) {
       return null; // Don't even let them know it exists
     }
 

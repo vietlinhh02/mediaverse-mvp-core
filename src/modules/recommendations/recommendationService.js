@@ -87,12 +87,6 @@ class RecommendationService {
                 }
               }
             }
-          },
-          channel: {
-            select: {
-              id: true,
-              name: true
-            }
           }
         },
         orderBy: [
@@ -129,8 +123,7 @@ class RecommendationService {
               username: true,
               profile: { select: { displayName: true, avatarUrl: true } }
             }
-          },
-          channel: { select: { id: true, name: true } }
+          }
         },
         orderBy: [{ trendingScore: 'desc' }, { publishedAt: 'desc' }],
         skip: offset,

@@ -14,9 +14,9 @@ const {
  *         id:
  *           type: string
  *           description: The playlist's unique identifier.
- *         channelId:
+ *         userId:
  *           type: string
- *           description: The ID of the channel that owns the playlist.
+ *           description: The ID of the user that owns the playlist.
  *         title:
  *           type: string
  *           description: The title of the playlist.

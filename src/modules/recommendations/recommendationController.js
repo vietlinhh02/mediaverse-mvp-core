@@ -58,6 +58,30 @@ class RecommendationController {
     }
   }
 
+  async getVideoRecommendations(req, res) {
+    try {
+      const options = {
+        limit: parseInt(req.query.limit) || 20,
+        timeframe: req.query.timeframe || '24h',
+        contentTypes: 'video', // Force content type to video
+      };
+
+      const content = await recommendationService.getTrendingContent(options);
+
+      res.json({
+        success: true,
+        data: content
+      });
+    } catch (error) {
+      console.error('Error in getVideoRecommendations:', error);
+      res.status(500).json({
+        success: false,
+        error: 'Internal server error',
+        message: error.message
+      });
+    }
+  }
+
   async searchContent(req, res) {
     try {
       const {
