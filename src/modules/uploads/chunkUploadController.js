@@ -17,12 +17,12 @@ async function initUpload(req, res) {
   try {
     const userId = req.user?.userId || req.user?.id;
 
-    console.log('📦 [Upload Init] Authenticated user object:', req.user);
-    console.log(`📦 [Upload Init] User ID from token: ${userId}`);
+    console.log('[Upload Init] Authenticated user object:', req.user);
+    console.log(`[Upload Init] User ID from token: ${userId}`);
 
     const {
       filename, contentType = 'video/mp4', totalSize, chunkSize, title, description, category,
-      tags, visibility = 'public', status = 'draft', channelId, useAdaptiveStorage = true
+      tags, visibility = 'public', status = 'draft', useAdaptiveStorage = true
     } = req.body || {};
 
     if (!filename || !totalSize || !chunkSize || !title || !category) {
@@ -47,7 +47,6 @@ async function initUpload(req, res) {
       tags: Array.isArray(tags) ? tags : (typeof tags === 'string' ? tags.split(',').map((t) => t.trim()).filter(Boolean) : []),
       visibility,
       status,
-      channelId: channelId || null,
       useAdaptiveStorage: String(useAdaptiveStorage) !== 'false',
       userId
     };
@@ -157,7 +156,7 @@ async function complete(req, res) {
     await s3.send(new PutObjectCommand({ Bucket: bucket, Key: objectKey, Body: fileBuffer, ContentType: meta.contentType }));
 
     // Log data before creating content
-    console.log('📦 [Upload] Creating content with data:', {
+    console.log('[Upload] Creating content with data:', {
       type: 'video',
       authorId: meta.userId,
       title: meta.title,
@@ -168,7 +167,6 @@ async function complete(req, res) {
       visibility: meta.visibility,
       uploadStatus: 'uploaded',
       processingStatus: 'queued',
-      channelId: meta.channelId || null,
       metadata: {
         sourceObjectKey: objectKey,
         originalName: meta.filename,
@@ -189,7 +187,6 @@ async function complete(req, res) {
         visibility: meta.visibility,
         uploadStatus: 'uploaded',
         processingStatus: 'queued',
-        channelId: meta.channelId || null,
         metadata: {
           sourceObjectKey: objectKey,
           originalName: meta.filename,
@@ -199,10 +196,10 @@ async function complete(req, res) {
     });
 
     // Enqueue processing job
-    console.log('📦 [Upload] Enqueuing processing job for contentId:', content.id);
+    console.log('[Upload] Enqueuing processing job for contentId:', content.id);
     const queue = createVideoQueue();
-    const { jobId } = await enqueueProcessVideo(queue, { contentId: content.id, sourceObjectKey: objectKey });
-    console.log('📦 [Upload] Job enqueued with jobId:', jobId);
+    const { jobId } = await enqueueProcessVideo(queue, { contentId: content.id, sourceObjectKey: objectKey, userId: meta.userId });
+    console.log('[Upload] Job enqueued with jobId:', jobId);
 
     // Cleanup temp
     await fs.remove(dir);

@@ -261,12 +261,25 @@ const uploadMiddleware = {
     maxFiles: 1
   }).single('file'),
 
+  // Mixed file uploads with memory storage (no disk)
+  contentFilesMemory: createUploadMiddleware({
+    allowedTypes: ['images', 'videos', 'documents', 'audio'],
+    maxFiles: 1,
+    useMemoryStorage: true
+  }).single('file'),
+
   // Memory storage for processing
   imageMemory: createUploadMiddleware({
     allowedTypes: ['images'],
     maxFiles: 1,
     useMemoryStorage: true
   }).single('image'),
+
+  documentMemory: createUploadMiddleware({
+    allowedTypes: ['documents'],
+    maxFiles: 1,
+    useMemoryStorage: true
+  }).single('document'),
 
   videoMemory: createUploadMiddleware({
     allowedTypes: ['videos'],
@@ -294,7 +307,15 @@ const uploadMiddleware = {
     allowedTypes: ['images'],
     maxFiles: 1,
     maxFileSize: 2 * 1024 * 1024 // 2MB
-  }).single('thumbnail')
+  }).single('thumbnail'),
+
+  // Cover image upload with memory storage for processing
+  coverImageMemory: createUploadMiddleware({
+    allowedTypes: ['images'],
+    maxFiles: 1,
+    maxFileSize: 10 * 1024 * 1024, // 10MB
+    useMemoryStorage: true
+  }).single('coverImage')
 };
 
 // File validation middleware (additional validation after upload)

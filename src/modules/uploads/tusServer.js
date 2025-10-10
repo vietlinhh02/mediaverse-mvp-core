@@ -62,7 +62,6 @@ function createTusHandler() {
             uploadStatus: 'uploaded',
             processingStatus: 'queued',
             author: userId ? { connect: { id: userId } } : undefined,
-            channel: metadata.channelId ? { connect: { id: metadata.channelId } } : undefined,
             metadata: {
               sourceObjectKey: objectKey,
               originalName: metadata.filename || upload.metadata?.filename,
@@ -73,7 +72,7 @@ function createTusHandler() {
 
         // Enqueue processing job
         const queue = createVideoQueue();
-        const { jobId } = await enqueueProcessVideo(queue, { contentId: content.id, sourceObjectKey: objectKey });
+        const { jobId } = await enqueueProcessVideo(queue, { contentId: content.id, sourceObjectKey: objectKey, userId });
 
         await prisma.job.create({
           data: {

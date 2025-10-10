@@ -10,12 +10,12 @@ const execAsync = promisify(exec);
 
 const TEMP_DIR = process.env.TEMP_DIR || path.join(process.cwd(), 'temp', 'video-processing');
 
-// HLS Configuration
+// HLS Configuration - Simple quality levels only
 const HLS_CONFIGS = [
-  { name: '1080p', width: 1920, height: 1080, bitrate: '5000k', audioBitrate: '192k' },
-  { name: '720p', width: 1280, height: 720, bitrate: '3000k', audioBitrate: '128k' },
-  { name: '480p', width: 854, height: 480, bitrate: '1500k', audioBitrate: '128k' },
-  { name: '360p', width: 640, height: 360, bitrate: '800k', audioBitrate: '96k' }
+  { name: '1080p', bitrate: '5000k', audioBitrate: '192k' },
+  { name: '720p', bitrate: '3000k', audioBitrate: '128k' },
+  { name: '480p', bitrate: '1500k', audioBitrate: '128k' },
+  { name: '360p', bitrate: '800k', audioBitrate: '96k' }
 ];
 
 async function processJob(job) {
@@ -49,23 +49,46 @@ async function processJob(job) {
     });
     console.log('Download complete.');
 
-    // 4. Generate thumbnail
+    // 4. Get video metadata first
+    console.log('Getting video metadata...');
+    const metadataCommand = `ffprobe -v quiet -print_format json -show_format -show_streams "${localInputPath}"`;
+    const { stdout: metadataOutput } = await execAsync(metadataCommand);
+    const metadata = JSON.parse(metadataOutput);
+    
+    // Find video stream
+    const videoStream = metadata.streams.find(stream => stream.codec_type === 'video');
+    if (!videoStream) {
+      throw new Error('No video stream found');
+    }
+    
+    const originalWidth = parseInt(videoStream.width);
+    const originalHeight = parseInt(videoStream.height);
+    const originalAspectRatio = originalWidth / originalHeight;
+    
+    console.log(`Original video: ${originalWidth}x${originalHeight} (aspect ratio: ${originalAspectRatio.toFixed(2)})`);
+
+    // 5. Generate thumbnail
     console.log('Generating thumbnail...');
     const thumbnailCommand = `ffmpeg -i "${localInputPath}" -ss 00:00:01.000 -vframes 1 "${thumbnailPath}"`;
     await execAsync(thumbnailCommand);
     console.log('Thumbnail generated.');
 
-    // 5. Upload thumbnail to MinIO
+    // 6. Upload thumbnail to MinIO
     const thumbnailKey = `thumbnails/${contentId}.jpg`;
     const thumbnailBuffer = await fs.readFile(thumbnailPath);
     const thumbnailUrl = await putObjectBuffer(thumbnailKey, thumbnailBuffer, 'image/jpeg');
     console.log(`Thumbnail uploaded to: ${thumbnailUrl}`);
 
-    // 6. Generate HLS streams for each quality
+    // 7. Use all quality levels - maintain original aspect ratio
+    const targetConfigs = HLS_CONFIGS;
+    console.log(`Original video: ${originalWidth}x${originalHeight} (aspect ratio: ${originalAspectRatio.toFixed(2)})`);
+    console.log('Generating all quality levels while maintaining original aspect ratio');
+
+    // 8. Generate HLS streams for selected qualities
     console.log('Generating HLS streams...');
     const hlsStreams = [];
     
-    for (const config of HLS_CONFIGS) {
+    for (const config of targetConfigs) {
       console.log(`Processing ${config.name} stream...`);
       const streamDir = path.join(hlsDir, config.name);
       await fs.ensureDir(streamDir);
@@ -73,11 +96,25 @@ async function processJob(job) {
       const playlistPath = path.join(streamDir, 'playlist.m3u8');
       const segmentPattern = path.join(streamDir, 'segment-%03d.ts');
       
-      // FFmpeg command for HLS transcoding
+      // Define target resolutions for each quality level
+      const targetResolutions = {
+        '1080p': { width: 1920, height: 1080 },
+        '720p': { width: 1280, height: 720 },
+        '480p': { width: 854, height: 480 },
+        '360p': { width: 640, height: 360 }
+      };
+
+      const target = targetResolutions[config.name];
+      const outputWidth = target.width;
+      const outputHeight = target.height;
+      
+      console.log(`${config.name}: ${originalWidth}x${originalHeight} -> ${outputWidth}x${outputHeight} (with padding if needed)`);
+      
+      // FFmpeg command with scale and pad filters to maintain aspect ratio
       const hlsCommand = `ffmpeg -i "${localInputPath}" ` +
+        `-vf "scale=w=${outputWidth}:h=${outputHeight}:force_original_aspect_ratio=decrease,pad=${outputWidth}:${outputHeight}:(ow-iw)/2:(oh-ih)/2:black" ` +
         `-c:v libx264 -c:a aac ` +
         `-b:v ${config.bitrate} -b:a ${config.audioBitrate} ` +
-        `-vf scale=${config.width}:${config.height} ` +
         `-f hls -hls_time 10 -hls_list_size 0 ` +
         `-hls_segment_filename "${segmentPattern}" ` +
         `"${playlistPath}"`;
@@ -87,8 +124,8 @@ async function processJob(job) {
       
       hlsStreams.push({
         name: config.name,
-        width: config.width,
-        height: config.height,
+        width: outputWidth,
+        height: outputHeight,
         bitrate: config.bitrate,
         playlistPath: playlistPath,
         streamDir: streamDir
@@ -149,7 +186,11 @@ async function processJob(job) {
           thumbnailUrl: thumbnailUrl,
           hlsMasterUrl: hlsMasterUrl,
           hlsStreams: hlsStreamUrls,
-          uploadedFiles: uploadedFiles
+          uploadedFiles: uploadedFiles,
+          // Simple video metadata
+          duration: parseFloat(videoStream.duration) || 0,
+          resolution: `${originalWidth}x${originalHeight}`,
+          fileSize: parseInt(metadata.format.size) || 0
         }
       },
     });
@@ -189,8 +230,11 @@ async function processJob(job) {
 function createMasterPlaylist(streams) {
   let playlist = '#EXTM3U\n#EXT-X-VERSION:3\n\n';
   
-  streams.forEach(stream => {
-    playlist += `#EXT-X-STREAM-INF:BANDWIDTH=${parseInt(stream.bitrate) * 1000},RESOLUTION=${stream.width}x${stream.height}\n`;
+  // Sort streams by bitrate (lowest to highest)
+  const sortedStreams = streams.sort((a, b) => parseInt(a.bitrate) - parseInt(b.bitrate));
+  
+  sortedStreams.forEach(stream => {
+    playlist += `#EXT-X-STREAM-INF:BANDWIDTH=${parseInt(stream.bitrate) * 1000},RESOLUTION=${stream.width}x${stream.height},NAME="${stream.name}"\n`;
     playlist += `${stream.name}/playlist.m3u8\n\n`;
   });
   
