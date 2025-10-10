@@ -91,13 +91,7 @@ const schemas = {
     parentId: Joi.string().uuid().optional()
   }),
 
-  // Channel creation schema
-  channel: Joi.object({
-    name: Joi.string().min(3).max(100).required(),
-    description: Joi.string().max(500).optional().allow(''),
-    category: Joi.string().valid('technology', 'education', 'entertainment', 'business', 'health', 'lifestyle', 'other').required(),
-    tags: Joi.array().items(Joi.string().max(50)).max(10).optional()
-  }),
+  
 
   // Report schema
   report: Joi.object({
@@ -132,7 +126,6 @@ const validateProfileUpdate = validate(schemas.profileUpdate);
 const validateContent = validate(schemas.content);
 const validateArticle = validate(schemas.article);
 const validateComment = validate(schemas.comment);
-const validateChannel = validate(schemas.channel);
 const validateReport = validate(schemas.report);
 const validatePagination = validate(schemas.pagination, 'query');
 const validateSearch = validate(schemas.search, 'query');
@@ -146,7 +139,6 @@ module.exports = {
   validateContent,
   validateArticle,
   validateComment,
-  validateChannel,
   validateReport,
   validatePagination,
   validateSearch

@@ -86,7 +86,7 @@ const verifyDatabaseSchema = async () => {
     `;
 
     const expectedTables = [
-      'users', 'profiles', 'channels', 'content',
+      'users', 'profiles', 'content',
       'likes', 'comments', 'follows', 'reports', 'notifications'
     ];
 
@@ -145,7 +145,6 @@ const cleanupTestData = async () => {
     await prisma.like.deleteMany();
     await prisma.follow.deleteMany();
     await prisma.content.deleteMany();
-    await prisma.channel.deleteMany();
     await prisma.profile.deleteMany();
     await prisma.user.deleteMany();
 

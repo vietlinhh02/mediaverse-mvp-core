@@ -302,6 +302,7 @@ const moderationRoutes = require('./modules/moderation/routes/moderationRoutes.j
 const analyticsRoutes = require('./modules/analytics/routes/analyticsRoutes');
 const playlistRoutes = require('./modules/content/playlistRoutes'); // Import playlist routes
 const uploadRoutes = require('./modules/uploads/routes');
+const storageRoutes = require('./routes/storage'); // Import storage proxy routes
 
 const WebSocketManager = require('./modules/notifications/websocket/webSocketManager');
 const realtimeService = require('./modules/analytics/services/realtimeService');
@@ -316,6 +317,7 @@ app.use('/api/moderation', moderationRoutes);
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/playlists', playlistRoutes); // Mount playlist routes
 app.use('/api/uploads', uploadRoutes); // Mount chunk upload routes
+app.use('/api/storage', storageRoutes); // Mount storage proxy routes
 
 // Initialize WebSocket server for real-time notifications
 const webSocketManager = new WebSocketManager();
@@ -393,36 +395,57 @@ const initializeServices = async () => {
     if (redisInitialized) {
       try {
         const { processJob } = require('./jobs/workers/videoProcessing.worker');
-        const { queue } = require('./config/redis');
-        const { VIDEO_QUEUE_NAME } = require('./jobs/queues/videoQueue');
-        const concurrency = Number(process.env.VIDEO_WORKER_CONCURRENCY || 2);
+        const { queue, redisQueue } = require('./config/redis');
+        const { REGISTRY_KEY } = require('./jobs/queues/videoQueue');
+        const perUserConcurrency = Math.min(Math.max(Number(process.env.VIDEO_WORKER_PER_USER_CONCURRENCY || 2), 1), 2);
 
-        for (let i = 0; i < concurrency; i += 1) {
-          (async function workerLoop() {
-            console.log(`Video processing worker #${i + 1} started...`);
-            // eslint-disable-next-line no-constant-condition
-            while (true) {
-              try {
-                // Use Redis long polling to wait for jobs
-                const job = await queue.popBlocking(VIDEO_QUEUE_NAME, 30); // 30-second timeout
+        const started = new Set();
 
-                if (job) {
-                  console.log(`Worker #${i + 1} picked up job:`, job.id);
-                  console.log(`Job payload:`, job.payload);
-                  await processJob(job);
-                } else {
-                  console.log(`Worker #${i + 1} timeout - no jobs available`);
+        async function startWorkersForQueue(queueName) {
+          if (started.has(queueName)) return;
+          started.add(queueName);
+          for (let i = 0; i < perUserConcurrency; i += 1) {
+            (async function workerLoop(workerIndex) {
+              console.log(`Video processing worker #${workerIndex + 1} for ${queueName} started...`);
+              // eslint-disable-next-line no-constant-condition
+              while (true) {
+                try {
+                  const job = await queue.popBlocking(queueName, 30);
+                  if (job) {
+                    console.log(`Worker ${queueName}#${workerIndex + 1} picked up job:`, job.id);
+                    await processJob(job);
+                  } else {
+                    // idle
+                  }
+                } catch (err) {
+                  console.error(`Video worker ${queueName}#${workerIndex + 1} error:`, err.message || err);
+                  await new Promise((r) => setTimeout(r, 5000));
                 }
-                // If job is null, the timeout was reached, and the loop will restart
-              } catch (err) {
-                console.error(`Video worker #${i + 1} error:`, err.message || err);
-                // Wait a bit before retrying to prevent fast error loops
-                await new Promise((r) => setTimeout(r, 5000));
               }
-            }
-          }());
+            }(i));
+          }
         }
-        console.log(`Video processing workers started (concurrency=${concurrency})`);
+
+        // Initial discovery of queues
+        const initialQueues = await redisQueue.sMembers(REGISTRY_KEY);
+        if (initialQueues && initialQueues.length) {
+          for (const qn of initialQueues) await startWorkersForQueue(qn);
+        }
+
+        // Periodically discover new queues and start workers
+        setInterval(async () => {
+          try {
+            const queues = await redisQueue.sMembers(REGISTRY_KEY);
+            for (const qn of queues || []) {
+              // eslint-disable-next-line no-await-in-loop
+              await startWorkersForQueue(qn);
+            }
+          } catch (e) {
+            console.error('Queue discovery error:', e.message || e);
+          }
+        }, 15000);
+
+        console.log(`Video processing workers manager started (per-user concurrency=${perUserConcurrency})`);
       } catch (e) {
         console.error('Failed to start video worker:', e.message);
       }

@@ -29,7 +29,6 @@ const {
   validateContent,
   validateArticle,
   validateComment,
-  validateChannel,
   validateReport,
   validatePagination,
   validateSearch
@@ -100,7 +99,6 @@ module.exports = {
   validateContent,
   validateArticle,
   validateComment,
-  validateChannel,
   validateReport,
   validatePagination,
   validateSearch,

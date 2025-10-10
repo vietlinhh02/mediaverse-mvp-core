@@ -49,10 +49,6 @@ const options = {
         description: 'User follow/unfollow operations'
       },
       {
-        name: 'Channels',
-        description: 'Channel management endpoints'
-      },
-      {
         name: 'Preferences',
         description: 'User preferences management endpoints'
       },
@@ -492,10 +488,6 @@ const options = {
               type: 'string',
               description: 'Author ID'
             },
-            channelId: {
-              type: 'string',
-              description: 'Channel ID'
-            },
             createdAt: {
               type: 'string',
               format: 'date-time',
@@ -523,13 +515,6 @@ const options = {
                     avatarUrl: { type: 'string' }
                   }
                 }
-              }
-            },
-            channel: {
-              type: 'object',
-              properties: {
-                id: { type: 'string' },
-                name: { type: 'string' }
               }
             },
             stats: {
