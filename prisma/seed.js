@@ -209,7 +209,7 @@ async function main() {
     await prisma.like.deleteMany();
     await prisma.follow.deleteMany();
     await prisma.content.deleteMany();
-    await prisma.channel.deleteMany();
+    // channels removed
     await prisma.profile.deleteMany();
     await prisma.user.deleteMany();
 
@@ -240,25 +240,8 @@ async function main() {
     }
 
     // Create channels
-    console.log('📺 Creating channels...');
-    const createdChannels = [];
-    
-    for (let i = 0; i < sampleChannels.length; i++) {
-      const channelData = sampleChannels[i];
-      const owner = createdUsers[i + 1]; // Skip admin user for channels
-      
-      if (owner) {
-        const channel = await prisma.channel.create({
-          data: {
-            ...channelData,
-            ownerId: owner.id
-          }
-        });
-        
-        createdChannels.push(channel);
-        console.log(`✅ Created channel: ${channel.name}`);
-      }
-    }
+    console.log('📺 Creating channels... (skipped)');
+const createdChannels = [];
 
     // Create content
     console.log('📝 Creating content...');
@@ -267,13 +250,12 @@ async function main() {
     for (let i = 0; i < sampleContent.length; i++) {
       const contentData = sampleContent[i];
       const author = createdUsers[(i % 3) + 1]; // Rotate between creators
-      const channel = createdChannels[i % createdChannels.length];
       
       const content = await prisma.content.create({
         data: {
           ...contentData,
           authorId: author.id,
-          channelId: channel?.id,
+          
           publishedAt: new Date(Date.now() - Math.random() * 30 * 24 * 60 * 60 * 1000) // Random date within last 30 days
         }
       });
@@ -399,7 +381,7 @@ async function main() {
     console.log('✅ Database seeded successfully!');
     console.log('\n📊 Seed Summary:');
     console.log(`👥 Users: ${createdUsers.length}`);
-    console.log(`📺 Channels: ${createdChannels.length}`);
+    console.log(`📺 Channels: 0 (removed)`);
     console.log(`📝 Content: ${createdContent.length}`);
     console.log(`👥 Follows: ${followRelationships.length}`);
     console.log(`💬 Comments: ${sampleComments.length}`);

@@ -30,8 +30,8 @@ model User {
 
   // Relations
   profile         Profile?
-  ownedChannels   Channel[]           @relation("ChannelOwner")
   content         Content[]           @relation("ContentAuthor")
+  playlists       Playlist[]
   likes           Like[]
   comments        Comment[]
   followers       Follow[]            @relation("UserFollowers")
@@ -40,7 +40,6 @@ model User {
   reportedContent Report[]            @relation("ReportedUser")
   notifications   Notification[]
   shares          Share[]
-  communityPosts  CommunityPost[]
   jobs            Job[]
   moderationLogs  ModerationLog[]     @relation("ModeratedUser")
   moderatorActions ModerationLog[]    @relation("Moderator")
@@ -81,35 +80,11 @@ model Profile {
   @@map("profiles")
 }
 
-// Channel model
-model Channel {
-  id              String   @id @default(uuid(7))
-  ownerId         String
-  name            String
-  description     String?
-  bannerImageUrl  String?
-  trailerContentId String?
-  featuredContent Json?
-  category        String
-  tags            String[]
-  subscriberCount Int      @default(0)
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-
-  // Relations
-  owner   User      @relation("ChannelOwner", fields: [ownerId], references: [id], onDelete: Cascade)
-  content Content[]
-  playlists Playlist[]
-
-  @@map("channels")
-}
-
 // Content model
 model Content {
   id             String    @id @default(uuid(7))
   type           String    // article, video, document, image
   authorId       String
-  channelId      String?
   title          String
   body           String?   // Content body for articles, videos, documents
   description    String?
@@ -138,7 +113,6 @@ model Content {
 
   // Relations
   author   User           @relation("ContentAuthor", fields: [authorId], references: [id], onDelete: Cascade)
-  channel  Channel?       @relation(fields: [channelId], references: [id], onDelete: SetNull)
   likes    Like[]
   comments Comment[]
   reports  Report[]       @relation("ReportedContent")
@@ -160,18 +134,15 @@ model Like {
   userId           String
   contentId        String?
   commentId        String?
-  communityPostId  String?
   createdAt        DateTime @default(now())
 
   // Relations
   user         User             @relation(fields: [userId], references: [id], onDelete: Cascade)
   content      Content?         @relation(fields: [contentId], references: [id], onDelete: Cascade)
   comment      Comment?         @relation(fields: [commentId], references: [id], onDelete: Cascade)
-  communityPost CommunityPost?   @relation("CommunityPostLikes", fields: [communityPostId], references: [id], onDelete: Cascade)
 
   @@unique([userId, contentId])
   @@unique([userId, commentId])
-  @@unique([userId, communityPostId])
   @@map("likes")
 }
 
@@ -180,7 +151,6 @@ model Comment {
   id               String   @id @default(uuid(7))
   userId           String
   contentId        String?
-  communityPostId  String?
   parentId         String?
   text             String
   createdAt        DateTime @default(now())
@@ -189,7 +159,6 @@ model Comment {
   // Relations
   user         User            @relation(fields: [userId], references: [id], onDelete: Cascade)
   content      Content?        @relation(fields: [contentId], references: [id], onDelete: Cascade)
-  communityPost CommunityPost? @relation("CommunityPostComments", fields: [communityPostId], references: [id], onDelete: Cascade)
   parent       Comment?        @relation("CommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
   replies      Comment[]       @relation("CommentReplies")
   likes        Like[]
@@ -277,25 +246,6 @@ model Share {
   @@map("shares")
 }
 
-// Community post model for social features
-model CommunityPost {
-  id          String   @id @default(uuid(7))
-  title       String
-  content     String
-  hashtags    String[] // Array of hashtags
-  visibility  String   @default("public") // public, community, private
-  authorId    String
-  metadata    Json     @default("{}") // Additional metadata
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  // Relations
-  author   User            @relation(fields: [authorId], references: [id], onDelete: Cascade)
-  likes    Like[]          @relation("CommunityPostLikes")
-  comments Comment[]       @relation("CommunityPostComments")
-
-  @@map("community_posts")
-}
 
 // Job model for media processing
 model Job {
@@ -429,7 +379,7 @@ enum PlaylistType {
 // Playlist model
 model Playlist {
   id          String             @id @default(uuid())
-  channelId   String
+  userId      String
   title       String
   description String?
   visibility  PlaylistVisibility @default(PUBLIC)
@@ -438,7 +388,7 @@ model Playlist {
   updatedAt   DateTime           @updatedAt
 
   // Relations
-  channel Channel       @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  user    User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   items   PlaylistItem[]
 
   @@map("playlists")
