@@ -1,7 +1,7 @@
 const ContentService = require('./contentService');
 const { prisma } = require('../../config/database');
 const { AppError } = require('../../middleware/errorHandler');
-const { createVideoQueue, enqueueProcessVideo, VIDEO_QUEUE_NAME } = require('../../jobs/queues/videoQueue');
+const { createVideoQueue, enqueueProcessVideo } = require('../../jobs/queues/videoQueue');
 const { getObjectStream } = require('../../services/media/minioMediaStore');
 const { queue } = require('../../config/redis');
 
@@ -479,8 +479,7 @@ class VideoController {
    *                 type: string
    *                 enum: [draft, published]
    *                 default: draft
-   *               channelId:
-   *                 type: string
+   *               
    *               useAdaptiveStorage:
    *                 type: boolean
    *                 default: true
@@ -513,21 +512,66 @@ class VideoController {
     try {
       const { page = 1, limit = 20, status = 'published', visibility, sortBy = 'recent' } = req.query;
       const skip = (Number(page) - 1) * Number(limit);
+      const userId = req.user?.id || req.user?.userId;  // Current user ID
 
       const where = { type: 'video' };
-      if (status !== 'all') where.status = status === 'draft' ? 'draft' : 'published';
-      if (visibility && visibility !== 'all') {
-        where.visibility = visibility;
-      } else if (where.status === 'published') {
-        where.visibility = { in: ['public', 'unlisted'] };
+      
+      // Handle status filtering
+      if (status !== 'all') {
+        where.status = status === 'draft' ? 'draft' : 'published';
       }
+
+      console.log('Debug getAllVideos:', { userId, status, visibility, where: JSON.stringify(where) });
+
+      // Handle visibility filtering based on user authentication and ownership
+      if (where.status === 'draft') {
+        // Draft content: only show to owner
+        if (!userId) {
+          // Anonymous user: return empty result for draft content
+          where.id = 'nonexistent'; // This will return no results
+        } else {
+          where.authorId = userId; // Only show user's own drafts
+        }
+      } else if (where.status === 'published') {
+        // Published content: show public and unlisted (private only for owner)
+        if (userId) {
+          // Authenticated user: can see public, unlisted, and their own private content
+          where.OR = [
+            { visibility: 'public' },
+            { visibility: 'unlisted' },
+            { visibility: 'private', authorId: userId }
+          ];
+        } else {
+          // Anonymous user: only public content
+          where.visibility = 'public';
+        }
+      }
+
+      console.log('After status filtering:', { where: JSON.stringify(where) });
+
+      // Apply additional visibility filter if specified
+      if (visibility && visibility !== 'all') {
+        if (where.OR) {
+          // If we have OR conditions, filter them by the specified visibility
+          where.OR = where.OR.filter(condition => {
+            if (condition.visibility) {
+              return condition.visibility === visibility;
+            }
+            return true; // Keep conditions without visibility (like authorId filters)
+          });
+        } else {
+          // For both draft and published content, add visibility filter
+          where.visibility = visibility;
+        }
+      }
+
+      console.log('Final where clause:', { where: JSON.stringify(where) });
 
       const orderBy = sortBy === 'popular' ? { views: 'desc' } : (sortBy === 'oldest' ? { createdAt: 'asc' } : { createdAt: 'desc' });
 
       const [items, total] = await Promise.all([
         prisma.content.findMany({ where, orderBy, skip, take: Number(limit), include: {
           author: { select: { id: true, username: true, profile: { select: { displayName: true, avatarUrl: true } } } },
-          channel: { select: { id: true, name: true } },
           _count: { select: { likes: true, comments: true } }
         } }),
         prisma.content.count({ where })
@@ -551,9 +595,50 @@ class VideoController {
   static async getVideo(req, res) {
     try {
       const { id } = req.params;
-      const content = await ContentService.getContent(id, true);
-      if (!content) return res.status(404).json({ error: 'Not found', code: 'NOT_FOUND' });
-      res.json({ success: true, data: content });
+      const userId = req.user?.id || req.user?.userId; // Current user ID
+      
+      const content = await prisma.content.findUnique({
+        where: { id },
+        include: {
+          author: { select: { id: true, username: true, profile: { select: { displayName: true, avatarUrl: true } } } },
+          _count: { select: { likes: true, comments: true } }
+        }
+      });
+      
+      if (!content) {
+        return res.status(404).json({ error: 'Video not found', code: 'NOT_FOUND' });
+      }
+
+      // Check access permissions
+      if (content.status === 'draft') {
+        // Draft content: only owner can view
+        if (!userId || content.authorId !== userId) {
+          return res.status(404).json({ error: 'Video not found', code: 'NOT_FOUND' });
+        }
+      } else if (content.status === 'published') {
+        // Published content: check visibility
+        if (content.visibility === 'private') {
+          // Private content: only owner can view
+          if (!userId || content.authorId !== userId) {
+            return res.status(404).json({ error: 'Video not found', code: 'NOT_FOUND' });
+          }
+        } else if (content.visibility === 'unlisted') {
+          // Unlisted content: anyone with link can view (no additional check needed)
+          // This allows sharing via direct link
+        } else if (content.visibility === 'public') {
+          // Public content: anyone can view (no additional check needed)
+        }
+      }
+
+      // Increment view count if not the owner
+      if (userId !== content.authorId) {
+        await prisma.content.update({
+          where: { id },
+          data: { views: { increment: 1 } }
+        });
+      }
+
+      res.json({ success: true, data: ContentService.transformContentResponse(content) });
     } catch (error) {
       res.status(error.statusCode || 500).json({ error: error.message, code: error.code || 'INTERNAL_ERROR' });
     }
@@ -611,11 +696,14 @@ class VideoController {
       if (content.type !== 'video') return res.status(400).json({ error: 'Content is not a video', code: 'INVALID_CONTENT_TYPE' });
       if (content.status !== 'published' || content.processingStatus !== 'completed') return res.status(400).json({ error: 'Video is not ready', code: 'VIDEO_NOT_READY' });
 
+      // Generate proxy URL for HLS streaming
+      const bucket = 'videos';
       const baseKey = content.metadata?.hlsMasterKey || `hls/${id}/master.m3u8`;
-      const key = quality ? `hls/${id}/${quality}/playlist.m3u8` : baseKey;
-      const stream = await getObjectStream(key);
-      res.setHeader('Content-Type', 'application/vnd.apple.mpegurl');
-      stream.pipe(res);
+      const objectKey = quality ? `hls/${id}/${quality}/playlist.m3u8` : baseKey;
+      
+      // Redirect to proxy URL instead of streaming directly
+      const proxyUrl = `/api/storage/${bucket}/${objectKey}`;
+      res.redirect(proxyUrl);
     } catch (error) {
       const status = error.$metadata?.httpStatusCode === 404 ? 404 : 500;
       res.status(status).json({ error: status === 404 ? 'Playlist not found' : error.message, code: status === 404 ? 'PLAYLIST_NOT_FOUND' : 'STREAMING_PREPARATION_FAILED' });
@@ -700,7 +788,7 @@ class VideoController {
 
       await prisma.content.update({ where: { id }, data: { status: 'draft', processingStatus: 'queued', metadata: { ...content.metadata, error: null } } });
       const queue = createVideoQueue();
-      const { jobId } = await enqueueProcessVideo(queue, { contentId: id, sourceObjectKey: sourceKey });
+      const { jobId } = await enqueueProcessVideo(queue, { contentId: id, sourceObjectKey: sourceKey, userId: content.authorId });
       res.json({ success: true, message: 'Video queued for reprocessing', data: { jobId } });
     } catch (error) {
       res.status(500).json({ error: error.message, code: 'INTERNAL_ERROR' });
@@ -716,8 +804,18 @@ class VideoController {
    */
   static async queueStatus(req, res) {
     try {
-      const length = await queue.length(VIDEO_QUEUE_NAME);
-      res.json({ success: true, data: { queueName: VIDEO_QUEUE_NAME, length } });
+      // Per-user queues used; return total length across all registered queues
+      const { redisQueue } = require('../../config/redis');
+      const { REGISTRY_KEY } = require('../../jobs/queues/videoQueue');
+      const queues = await redisQueue.sMembers(REGISTRY_KEY);
+      let total = 0;
+      for (const qn of queues || []) {
+        // queue.length uses list_queue:<queueName>
+        // reuse helper for convenience
+        // eslint-disable-next-line no-await-in-loop
+        total += await require('../../config/redis').queue.length(qn);
+      }
+      res.json({ success: true, data: { queues: queues || [], total } });
     } catch (error) {
       res.status(500).json({ error: error.message, code: 'INTERNAL_ERROR' });
     }

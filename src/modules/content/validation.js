@@ -74,9 +74,6 @@ const articleCreateSchema = Joi.object({
     .messages({
       'any.only': 'Visibility must be one of: public, private, unlisted'
     }),
-  channelId: Joi.string().optional().allow(null, '').messages({
-    'string.base': 'Channel ID must be a string'
-  }),
   summary: Joi.string().max(500).allow('').trim()
     .messages({
       'string.max': 'Summary cannot exceed 500 characters'
@@ -132,9 +129,6 @@ const articleUpdateSchema = Joi.object({
     .messages({
       'any.only': 'Visibility must be one of: public, private, unlisted'
     }),
-  channelId: Joi.string().optional().allow(null, '').messages({
-    'string.base': 'Channel ID must be a string'
-  }),
   summary: Joi.string().max(500).allow('').trim()
     .messages({
       'string.max': 'Summary cannot exceed 500 characters'
@@ -210,9 +204,6 @@ const videoInitSchema = Joi.object({
     .messages({
       'any.only': 'Visibility must be one of: public, private, unlisted'
     }),
-  channelId: Joi.string().optional().allow(null, '').messages({
-    'string.base': 'Channel ID must be a string'
-  }),
   useAdaptiveStorage: Joi.boolean().default(true)
     .messages({
       'boolean.base': 'Use adaptive storage must be a boolean value'
@@ -284,9 +275,6 @@ const videoUploadSchema = Joi.object({
     .messages({
       'any.only': 'Visibility must be one of: public, private, unlisted'
     }),
-  channelId: Joi.string().optional().allow(null, '').messages({
-    'string.base': 'Channel ID must be a string'
-  }),
   summary: Joi.string().max(500).allow('').trim()
     .messages({
       'string.max': 'Summary cannot exceed 500 characters'
@@ -311,63 +299,6 @@ const shareContentSchema = Joi.object({
     })
 });
 
-// Community post validation schema
-const communityPostCreateSchema = Joi.object({
-  title: Joi.string().min(5).max(200).trim()
-    .required()
-    .messages({
-      'string.min': 'Post title must be at least 5 characters long',
-      'string.max': 'Post title cannot exceed 200 characters',
-      'string.empty': 'Post title is required',
-      'any.required': 'Post title is required'
-    }),
-  content: Joi.string().min(10).max(10000).trim()
-    .required()
-    .messages({
-      'string.min': 'Post content must be at least 10 characters long',
-      'string.max': 'Post content cannot exceed 10,000 characters',
-      'string.empty': 'Post content is required',
-      'any.required': 'Post content is required'
-    }),
-  hashtags: Joi.alternatives().try(
-    Joi.string().max(500).trim().custom((value, helpers) => {
-      const hashtags = value.split(',').map((tag) => tag.trim()).filter((tag) => tag.length > 0);
-      for (const tag of hashtags) {
-        if (tag.length > 50) {
-          return helpers.error('string.max');
-        }
-      }
-      if (hashtags.length > 10) {
-        return helpers.error('array.max');
-      }
-      return hashtags;
-    })
-      .messages({
-        'string.max': 'Each hashtag cannot exceed 50 characters',
-        'array.max': 'Maximum 10 hashtags allowed'
-      }),
-    Joi.array().items(
-      Joi.string().max(50).trim()
-    ).max(10).messages({
-      'array.max': 'Maximum 10 hashtags allowed',
-      'string.max': 'Each hashtag cannot exceed 50 characters'
-    })
-  ).default([]),
-  visibility: Joi.string().valid('public', 'community', 'private').default('public')
-    .messages({
-      'any.only': 'Visibility must be one of: public, community, private'
-    })
-});
-
-// Community post query validation schema
-const communityPostQuerySchema = Joi.object({
-  page: Joi.number().integer().min(1).default(1),
-  limit: Joi.number().integer().min(1).max(50)
-    .default(20),
-  hashtag: Joi.string().optional(),
-  sortBy: Joi.string().valid('createdAt', 'likes', 'comments').default('createdAt'),
-  sortOrder: Joi.string().valid('asc', 'desc').default('desc')
-});
 
 // Comment query validation schema
 const commentQuerySchema = Joi.object({
@@ -446,9 +377,7 @@ const documentUploadSchema = Joi.object({
     .messages({
       'any.only': 'Visibility must be one of: public, private, unlisted'
     }),
-  channelId: Joi.string().optional().allow(null, '').messages({
-    'string.base': 'Channel ID must be a string'
-  }),
+  
   summary: Joi.string().max(500).allow('').trim()
     .messages({
       'string.max': 'Summary cannot exceed 500 characters'
@@ -816,8 +745,6 @@ const validateCategoryContent = validate(categoryContentSchema, 'query');
 const validateContentId = validate(contentIdSchema, 'params');
 const validateCategory = validate(categoryParamSchema, 'params');
 const validateShareContent = validate(shareContentSchema);
-const validateCommunityPostCreate = validate(communityPostCreateSchema);
-const validateCommunityPostQuery = validate(communityPostQuerySchema, 'query');
 
 // New document validation middleware
 const validateExtractText = validate(extractTextSchema, 'query');
@@ -843,8 +770,6 @@ module.exports = {
   contentIdSchema,
   categoryParamSchema,
   shareContentSchema,
-  communityPostCreateSchema,
-  communityPostQuerySchema,
   extractTextSchema,
   generateDownloadLinkSchema,
   bulkMoveDocumentsSchema,
@@ -868,8 +793,6 @@ module.exports = {
   validateContentId,
   validateCategory,
   validateShareContent,
-  validateCommunityPostCreate,
-  validateCommunityPostQuery,
   validateExtractText,
   validateGenerateDownloadLink,
   validateBulkMoveDocuments,

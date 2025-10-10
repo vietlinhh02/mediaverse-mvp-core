@@ -49,9 +49,6 @@
  *           type: string
  *           format: uri
  *           description: Featured image URL
- *         channelId:
- *           type: string
- *           description: Associated channel ID
  *         authorId:
  *           type: string
  *           description: Author user ID
@@ -125,9 +122,6 @@ class ArticleController {
    *                 type: string
    *                 format: uri
    *                 description: Featured image URL
-   *               channelId:
-   *                 type: string
-   *                 description: Channel ID to publish in
    *               status:
    *                 type: string
    *                 enum: [draft, published, scheduled]
@@ -149,7 +143,7 @@ class ArticleController {
    *               category: "programming"
    *               tags: ["react", "javascript", "tutorial"]
    *               featuredImage: "https://example.com/image.jpg"
-   *               channelId: "ch_123"
+ *           
    *               status: "draft"
    *               visibility: "public"
    *     responses:
@@ -179,31 +173,20 @@ class ArticleController {
    */
   static createArticle = asyncHandler(async (req, res) => {
     const { userId } = req.user;
-    const { channelId } = req.body;
-
-    // Validate channel ownership if channelId is provided
-    if (channelId) {
-      const channel = await require('../../config/database').prisma.channel.findUnique({
-        where: { id: channelId },
-        select: { ownerId: true }
-      });
-
-      if (!channel) {
-        throw new AppError('Channel not found', 404, 'CHANNEL_NOT_FOUND');
-      }
-
-      if (channel.ownerId !== userId) {
-        throw new AppError('Unauthorized to create content in this channel', 403, 'UNAUTHORIZED');
-      }
-    }
 
     // Handle file upload if present
     const articleData = { ...req.body };
     if (req.file) {
-      articleData.featuredImage = `/uploads/images/${req.file.filename}`;
+      // Upload featured image to MinIO using memory buffer
+      const path = require('path');
+      const { putObjectBuffer } = require('../../services/media/minioMediaStore');
+      const ext = path.extname(req.file.originalname || req.file.filename) || '.jpg';
+      const key = `images/articles/${userId}/${Date.now()}-${req.file.filename || 'image'}${ext}`;
+      const s3Url = await putObjectBuffer(key, req.file.buffer, req.file.mimetype || 'image/jpeg');
+      articleData.featuredImage = s3Url;
     }
 
-    const article = await ContentService.createArticle(userId, articleData, channelId);
+    const article = await ContentService.createArticle(userId, articleData);
 
     res.status(201).json({
       success: true,
@@ -306,7 +289,13 @@ class ArticleController {
     // Handle file upload if present
     const updateData = { ...req.body };
     if (req.file) {
-      updateData.featuredImage = `/uploads/images/${req.file.filename}`;
+      // Upload updated featured image to MinIO (memory buffer)
+      const path = require('path');
+      const { putObjectBuffer } = require('../../services/media/minioMediaStore');
+      const ext = path.extname(req.file.originalname || req.file.filename) || '.jpg';
+      const key = `images/articles/${userId}/${Date.now()}-${req.file.filename || 'image'}${ext}`;
+      const s3Url = await putObjectBuffer(key, req.file.buffer, req.file.mimetype || 'image/jpeg');
+      updateData.featuredImage = s3Url;
     }
 
     const updatedArticle = await ContentService.updateContent(id, updateData, userId);
@@ -640,12 +629,6 @@ class ArticleController {
               }
             }
           },
-          channel: {
-            select: {
-              id: true,
-              name: true
-            }
-          },
           _count: {
             select: {
               likes: true,
@@ -739,16 +722,44 @@ class ArticleController {
    */
   static getAllArticles = asyncHandler(async (req, res) => {
     const { page = 1, limit = 20, status = 'published' } = req.query;
+    const userId = req.user?.id; // Current user ID
 
     const skip = (page - 1) * limit;
 
+    const where = { type: 'article' };
+    
+    // Handle status filtering
+    if (status !== 'all') {
+      where.status = status === 'draft' ? 'draft' : 'published';
+    }
+
+    // Handle visibility filtering based on user authentication and ownership
+    if (where.status === 'draft') {
+      // Draft content: only show to owner
+      if (!userId) {
+        // Anonymous user: return empty result for draft content
+        where.id = 'nonexistent'; // This will return no results
+      } else {
+        where.authorId = userId; // Only show user's own drafts
+      }
+    } else if (where.status === 'published') {
+      // Published content: show public and unlisted (private only for owner)
+      if (userId) {
+        // Authenticated user: can see public, unlisted, and their own private content
+        where.OR = [
+          { visibility: 'public' },
+          { visibility: 'unlisted' },
+          { visibility: 'private', authorId: userId }
+        ];
+      } else {
+        // Anonymous user: only public content
+        where.visibility = 'public';
+      }
+    }
+
     const [articles, total] = await Promise.all([
       require('../../config/database').prisma.content.findMany({
-        where: {
-          type: 'article',
-          status: status === 'all' ? undefined : status,
-          visibility: { in: ['public', 'unlisted'] }
-        },
+        where,
         include: {
           author: {
             select: {
@@ -762,12 +773,6 @@ class ArticleController {
               }
             }
           },
-          channel: {
-            select: {
-              id: true,
-              name: true
-            }
-          },
           _count: {
             select: {
               likes: true,
@@ -779,13 +784,7 @@ class ArticleController {
         skip,
         take: parseInt(limit)
       }),
-      require('../../config/database').prisma.content.count({
-        where: {
-          type: 'article',
-          status: status === 'all' ? undefined : status,
-          visibility: { in: ['public', 'unlisted'] }
-        }
-      })
+      require('../../config/database').prisma.content.count({ where })
     ]);
 
     res.json({
@@ -1187,8 +1186,12 @@ class ArticleController {
       throw new AppError('No image file provided', 400, 'NO_FILE');
     }
 
-    // Build the image URL
-    const imageUrl = `/uploads/images/${req.file.filename}`;
+    // Upload to MinIO and build the image URL
+    const path = require('path');
+    const { putObjectBuffer } = require('../../services/media/minioMediaStore');
+    const ext = path.extname(req.file.originalname || req.file.filename) || '.jpg';
+    const key = `images/articles/${userId}/${Date.now()}-${req.file.filename || 'image'}${ext}`;
+    const imageUrl = await putObjectBuffer(key, req.file.buffer, req.file.mimetype || 'image/jpeg');
 
     // Update article with featured image
     const updatedArticle = await ContentService.updateContent(id, {

@@ -59,9 +59,6 @@
  *         pageCount:
  *           type: number
  *           description: Number of pages in document
- *         channelId:
- *           type: string
- *           description: Associated channel ID
  *         authorId:
  *           type: string
  *           description: Author user ID
@@ -137,9 +134,6 @@ class DocumentController {
    *               tags:
    *                 type: string
    *                 description: Document tags (comma-separated)
-   *               channelId:
-   *                 type: string
-   *                 description: Channel ID to publish in
    *               visibility:
    *                 type: string
    *                 enum: [public, private, unlisted]
@@ -150,7 +144,7 @@ class DocumentController {
    *               description: "Comprehensive guide to React development"
    *               category: "programming"
    *               tags: "react,javascript,guide"
-   *               channelId: "ch_123"
+ *           
    *               visibility: "public"
    *     responses:
    *       201:
@@ -192,20 +186,7 @@ class DocumentController {
    */
   static uploadDocument = asyncHandler(async (req, res) => {
     const { userId } = req.user;
-    const { channelId } = req.body;
-
-    // Validate channel ownership if channelId is provided
-    if (channelId && channelId.trim() !== '') {
-      const channel = await require('../../config/database').prisma.channel.findUnique({
-        where: { id: channelId }
-      });
-      if (!channel) {
-        throw new AppError('Channel not found', 404, 'CHANNEL_NOT_FOUND');
-      }
-      if (channel.ownerId !== userId) {
-        throw new AppError('Unauthorized to create content in this channel', 403, 'UNAUTHORIZED');
-      }
-    }
+    // Channel ownership validation removed; content is attached directly to user
 
     // Check if file was uploaded
     if (!req.file) {
@@ -213,21 +194,25 @@ class DocumentController {
     }
 
     const documentFile = req.file;
+    // Upload document to MinIO
+    const { putObjectBuffer } = require('../../services/media/minioMediaStore');
+    const key = `documents/${userId}/${Date.now()}-${documentFile.originalname || documentFile.filename || 'document'}`;
+    const s3Url = await putObjectBuffer(key, documentFile.buffer, documentFile.mimetype || 'application/octet-stream');
 
-    // Basic document metadata
+    // Basic document metadata (point to MinIO)
     const documentData = {
       ...req.body,
       fileSize: documentFile.size,
-      documentUrl: `/uploads/documents/${documentFile.filename}`,
+      documentUrl: s3Url,
       filename: documentFile.filename,
       originalName: documentFile.originalname,
       mimetype: documentFile.mimetype,
-      uploadPath: documentFile.path,
+      uploadPath: key,
       extension: path.extname(documentFile.originalname).toLowerCase()
     };
 
     // Create document record in database
-    const document = await ContentService.createDocument(userId, documentData, channelId);
+    const document = await ContentService.createDocument(userId, documentData);
 
     // Queue document processing job
     await DocumentController.queueDocumentProcessing(document.id, documentFile);
@@ -361,16 +346,29 @@ class DocumentController {
     const {
       page = 1, limit = 20, category, sortBy = 'recent'
     } = req.query;
+    const userId = req.user?.id; // Current user ID
     const skip = (page - 1) * limit;
 
     const where = {
       type: 'document',
-      status: 'published',
-      visibility: 'public'
+      status: 'published'
     };
 
     if (category) {
       where.category = category;
+    }
+
+    // Handle visibility filtering based on user authentication and ownership
+    if (userId) {
+      // Authenticated user: can see public, unlisted, and their own private content
+      where.OR = [
+        { visibility: 'public' },
+        { visibility: 'unlisted' },
+        { visibility: 'private', authorId: userId }
+      ];
+    } else {
+      // Anonymous user: only public content
+      where.visibility = 'public';
     }
 
     const orderBy = sortBy === 'popular' ? { views: 'desc' }
@@ -645,12 +643,6 @@ class DocumentController {
               }
             }
           },
-          channel: {
-            select: {
-              id: true,
-              name: true
-            }
-          },
           _count: {
             select: {
               likes: true,
@@ -861,27 +853,27 @@ class DocumentController {
 
     // If format is 'pdf' or 'file', serve the actual file
     if (format === 'pdf' || format === 'file') {
-      const filePath = document.metadata?.documentUrl;
-
-      if (!filePath) {
+      const fileUrl = document.metadata?.documentUrl;
+      if (!fileUrl) {
         throw new AppError('Document file not found', 404, 'FILE_NOT_FOUND');
       }
-
-      const fullPath = path.join(__dirname, '../../..', filePath);
-      const fileExists = await fs.access(fullPath).then(() => true).catch(() => false);
-
-      if (!fileExists) {
-        throw new AppError('Document file not available', 404, 'FILE_NOT_AVAILABLE');
+      // Stream from MinIO if s3 URL, else fallback to local
+      const { getObjectStream } = require('../../services/media/minioMediaStore');
+      let stream;
+      if (fileUrl.startsWith('s3://')) {
+        const parts = fileUrl.replace('s3://', '').split('/')
+        const key = parts.slice(1).join('/');
+        stream = await getObjectStream(key);
+      } else {
+        const fullPath = path.join(__dirname, '../../..', fileUrl);
+        const fileExists = await fs.access(fullPath).then(() => true).catch(() => false);
+        if (!fileExists) throw new AppError('Document file not available', 404, 'FILE_NOT_AVAILABLE');
+        stream = require('fs').createReadStream(fullPath);
       }
-
-      // Set headers for inline display (not download)
       const mimetype = document.metadata?.mimetype || 'application/pdf';
       res.setHeader('Content-Type', mimetype);
-      res.setHeader('Content-Disposition', 'inline'); // Display in browser instead of download
-
-      // Stream file to response
-      const fileStream = require('fs').createReadStream(fullPath);
-      return fileStream.pipe(res);
+      res.setHeader('Content-Disposition', 'inline');
+      return stream.pipe(res);
     }
 
     // Return JSON metadata for text/html format
@@ -959,26 +951,23 @@ class DocumentController {
     }
 
     // Get file path from metadata
-    const filePath = document.metadata?.documentUrl;
+    const fileUrl = document.metadata?.documentUrl;
 
-    if (!filePath) {
+    if (!fileUrl) {
       throw new AppError('Document file not found', 404, 'FILE_NOT_FOUND');
     }
-
-    // Check if file exists
-    const fullPath = path.join(__dirname, '../../..', filePath);
-    const fileExists = await fs.access(fullPath).then(() => true).catch(() => false);
-
-    if (!fileExists) {
-      throw new AppError('Document file not available', 404, 'FILE_NOT_AVAILABLE');
-    }
-
     // Set headers for file download
     const filename = document.metadata?.originalName || `${document.title}.${document.metadata?.extension || 'pdf'}`;
     res.setHeader('Content-Type', document.metadata?.mimetype || 'application/octet-stream');
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-
-    // Stream file to response
+    const { getObjectStream } = require('../../services/media/minioMediaStore');
+    if (fileUrl.startsWith('s3://')) {
+      const parts = fileUrl.replace('s3://', '').split('/')
+      const key = parts.slice(1).join('/');
+      const s = await getObjectStream(key);
+      return s.pipe(res);
+    }
+    const fullPath = path.join(__dirname, '../../..', fileUrl);
     const fileStream = require('fs').createReadStream(fullPath);
     fileStream.pipe(res);
   });

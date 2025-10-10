@@ -14,7 +14,82 @@ class ContentService {
       delete content.body;
     }
 
+    // Transform MinIO URLs to proxy URLs for security
+    if (content.featuredImage) {
+      content.featuredImage = ContentService.transformMinIOUrlToProxy(content.featuredImage);
+    }
+
+    // Transform metadata URLs if present
+    if (content.metadata) {
+      const metadata = { ...content.metadata };
+      
+      // Transform thumbnail URLs
+      if (metadata.thumbnailUrl) {
+        metadata.thumbnailUrl = ContentService.transformMinIOUrlToProxy(metadata.thumbnailUrl);
+      }
+      // Transform document URL if present
+      if (metadata.documentUrl) {
+        metadata.documentUrl = ContentService.transformMinIOUrlToProxy(metadata.documentUrl);
+      }
+      
+      // Transform thumbnail array
+      if (metadata.thumbnails && Array.isArray(metadata.thumbnails)) {
+        metadata.thumbnails = metadata.thumbnails.map(url => ContentService.transformMinIOUrlToProxy(url));
+      }
+      
+      // Transform HLS URLs
+      if (metadata.hlsMasterUrl) {
+        metadata.hlsMasterUrl = ContentService.transformMinIOUrlToProxy(metadata.hlsMasterUrl);
+      }
+      
+      if (metadata.hlsStreams && Array.isArray(metadata.hlsStreams)) {
+        metadata.hlsStreams = metadata.hlsStreams.map(stream => ({
+          ...stream,
+          playlistUrl: ContentService.transformMinIOUrlToProxy(stream.playlistUrl)
+        }));
+      }
+      
+      content.metadata = metadata;
+    }
+
     return content;
+  }
+
+  // Helper method to transform MinIO URLs to proxy URLs
+  static transformMinIOUrlToProxy(url) {
+    if (!url || typeof url !== 'string') return url;
+    
+    // Check if it's already a proxy URL
+    if (url.includes('/api/storage/')) return url;
+    
+    // Check if it's a MinIO URL (s3:// or http://localhost:9000)
+    if (url.startsWith('s3://') || url.includes('localhost:9000') || url.includes('minio')) {
+      // Extract bucket and object key from different URL formats
+      let bucket, objectKey;
+      
+      if (url.startsWith('s3://')) {
+        // s3://bucket/key format
+        const s3Match = url.match(/^s3:\/\/([^\/]+)\/(.+)$/);
+        if (s3Match) {
+          bucket = s3Match[1];
+          objectKey = s3Match[2];
+        }
+      } else if (url.includes('localhost:9000') || url.includes('minio')) {
+        // http://localhost:9000/bucket/key format
+        const urlObj = new URL(url);
+        const pathParts = urlObj.pathname.split('/').filter(Boolean);
+        if (pathParts.length >= 2) {
+          bucket = pathParts[0];
+          objectKey = pathParts.slice(1).join('/');
+        }
+      }
+      
+      if (bucket && objectKey) {
+        return `/api/storage/${bucket}/${objectKey}`;
+      }
+    }
+    
+    return url;
   }
 
   // Helper method to calculate reading time for articles
@@ -91,9 +166,14 @@ class ContentService {
   }
 
   // Create article
-  static async createArticle(userId, articleData, channelId = null) {
+  static async createArticle(userId, articleData) {
     try {
-      const metadata = this.generateContentMetadata(articleData, 'article');
+      const baseMetadata = this.generateContentMetadata(articleData, 'article');
+      const metadata = {
+        ...baseMetadata,
+        processingStatus: 'completed',
+        uploadStatus: 'completed'
+      };
 
       const content = await prisma.content.create({
         data: {
@@ -107,12 +187,12 @@ class ContentService {
           metadata,
           status: articleData.status || 'draft',
           visibility: articleData.visibility || 'public',
+          // For articles, consider processing done by default
+          uploadStatus: 'completed',
+          processingStatus: 'completed',
           author: {
             connect: { id: userId }
-          },
-          channel: channelId ? {
-            connect: { id: channelId }
-          } : undefined
+          }
         },
         include: {
           author: {
@@ -125,12 +205,6 @@ class ContentService {
                   avatarUrl: true
                 }
               }
-            }
-          },
-          channel: {
-            select: {
-              id: true,
-              name: true
             }
           }
         }
@@ -147,7 +221,7 @@ class ContentService {
   }
 
   // Create video
-  static async createVideo(userId, videoData, channelId = null) {
+  static async createVideo(userId, videoData) {
     try {
       const metadata = this.generateContentMetadata(videoData, 'video', {
         duration: videoData.duration || 0,
@@ -172,10 +246,7 @@ class ContentService {
           visibility: videoData.visibility || 'public',
           author: {
             connect: { id: userId }
-          },
-          channel: channelId ? {
-            connect: { id: channelId }
-          } : undefined
+          }
         },
         include: {
           author: {
@@ -188,12 +259,6 @@ class ContentService {
                   avatarUrl: true
                 }
               }
-            }
-          },
-          channel: {
-            select: {
-              id: true,
-              name: true
             }
           }
         }
@@ -210,7 +275,7 @@ class ContentService {
   }
 
   // Create document
-  static async createDocument(userId, documentData, channelId = null) {
+  static async createDocument(userId, documentData) {
     try {
       const metadata = this.generateContentMetadata(documentData, 'document', {
         pageCount: documentData.pageCount || 0,
@@ -231,10 +296,7 @@ class ContentService {
           visibility: documentData.visibility || 'public',
           author: {
             connect: { id: userId }
-          },
-          channel: channelId ? {
-            connect: { id: channelId }
-          } : undefined
+          }
         },
         include: {
           author: {
@@ -247,12 +309,6 @@ class ContentService {
                   avatarUrl: true
                 }
               }
-            }
-          },
-          channel: {
-            select: {
-              id: true,
-              name: true
             }
           }
         }
@@ -370,12 +426,6 @@ class ContentService {
                 }
               }
             }
-          },
-          channel: {
-            select: {
-              id: true,
-              name: true
-            }
           }
         }
       });
@@ -472,12 +522,6 @@ class ContentService {
                 }
               }
             },
-            channel: {
-              select: {
-                id: true,
-                name: true
-              }
-            },
             _count: {
               select: {
                 likes: true,
@@ -510,7 +554,7 @@ class ContentService {
   }
 
   // Search content with full-text search
-  static async searchContent(searchParams) {
+  static async searchContent(searchParams, userId = null) {
     try {
       const {
         q,
@@ -527,9 +571,21 @@ class ContentService {
 
       // Build search conditions
       const where = {
-        status: 'published',
-        visibility: { in: ['public', 'unlisted'] }
+        status: 'published'
       };
+
+      // Handle visibility filtering based on user authentication and ownership
+      if (userId) {
+        // Authenticated user: can see public, unlisted, and their own private content
+        where.OR = [
+          { visibility: 'public' },
+          { visibility: 'unlisted' },
+          { visibility: 'private', authorId: userId }
+        ];
+      } else {
+        // Anonymous user: only public content
+        where.visibility = 'public';
+      }
 
       if (type !== 'all') {
         where.type = type;
@@ -574,12 +630,6 @@ class ContentService {
                     avatarUrl: true
                   }
                 }
-              }
-            },
-            channel: {
-              select: {
-                id: true,
-                name: true
               }
             },
             _count: {
@@ -676,12 +726,6 @@ class ContentService {
                     }
                   }
                 },
-                channel: {
-                  select: {
-                    id: true,
-                    name: true
-                  }
-                },
                 _count: {
                   select: {
                     likes: true,
@@ -724,12 +768,6 @@ class ContentService {
                       avatarUrl: true
                     }
                   }
-                }
-              },
-              channel: {
-                select: {
-                  id: true,
-                  name: true
                 }
               },
               _count: {
@@ -783,12 +821,6 @@ class ContentService {
                         avatarUrl: true
                       }
                     }
-                  }
-                },
-                channel: {
-                  select: {
-                    id: true,
-                    name: true
                   }
                 },
                 _count: {
@@ -887,12 +919,6 @@ class ContentService {
                 }
               }
             },
-            channel: {
-              select: {
-                id: true,
-                name: true
-              }
-            },
             _count: {
               select: {
                 likes: true,
@@ -961,12 +987,6 @@ class ContentService {
                   avatarUrl: true
                 }
               }
-            }
-          },
-          channel: {
-            select: {
-              id: true,
-              name: true
             }
           },
           _count: {
@@ -1038,12 +1058,6 @@ class ContentService {
                     avatarUrl: true
                   }
                 }
-              }
-            },
-            channel: {
-              select: {
-                id: true,
-                name: true
               }
             },
             _count: {
