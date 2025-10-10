@@ -452,12 +452,6 @@ class FeedController {
               }
             }
           },
-          channel: {
-            select: {
-              id: true,
-              name: true
-            }
-          },
           _count: {
             select: {
               likes: true,
@@ -528,12 +522,6 @@ class FeedController {
                   avatarUrl: true
                 }
               }
-            }
-          },
-          channel: {
-            select: {
-              id: true,
-              name: true
             }
           },
           _count: {
@@ -646,12 +634,6 @@ class FeedController {
                 }
               }
             },
-            channel: {
-              select: {
-                id: true,
-                name: true
-              }
-            },
             _count: {
               select: {
                 likes: true,
@@ -732,12 +714,6 @@ class FeedController {
               }
             }
           },
-          channel: {
-            select: {
-              id: true,
-              name: true
-            }
-          },
           _count: {
             select: {
               likes: true,
@@ -809,12 +785,6 @@ class FeedController {
                   avatarUrl: true
                 }
               }
-            }
-          },
-          channel: {
-            select: {
-              id: true,
-              name: true
             }
           },
           _count: {

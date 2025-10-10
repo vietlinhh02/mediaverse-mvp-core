@@ -28,8 +28,6 @@ const {
   validateContentId,
   validateCategory,
   validateShareContent,
-  validateCommunityPostCreate,
-  validateCommunityPostQuery,
   validateExtractText,
   validateGenerateDownloadLink,
   validateBulkMoveDocuments,
@@ -43,7 +41,7 @@ router.post(
   '/articles',
   authenticateToken,
   requireActiveUser,
-  uploadMiddleware.contentFiles, // For future image uploads with articles
+  uploadMiddleware.contentFilesMemory, // memory storage
   handleUploadError,
   validateArticleCreate,
   ArticleController.createArticle
@@ -81,7 +79,7 @@ router.put(
   '/articles/:id',
   authenticateToken,
   requireActiveUser,
-  uploadMiddleware.contentFiles, // Support file upload on update
+  uploadMiddleware.contentFilesMemory, // memory storage
   handleUploadError,
   validateContentId,
   validateArticleUpdate,
@@ -94,7 +92,7 @@ router.post(
   authenticateToken,
   requireActiveUser,
   validateContentId,
-  uploadMiddleware.singleImage,
+  uploadMiddleware.imageMemory,
   handleUploadError,
   ArticleController.uploadFeaturedImage
 );
@@ -156,12 +154,14 @@ const { optionalAuth, requireModerator } = require('../../middleware/auth');
 // Listing
 router.get(
   '/videos',
+  optionalAuth,
   VideoController.getAllVideos
 );
 
 // Get
 router.get(
   '/videos/:id',
+  optionalAuth,
   validateContentId,
   VideoController.getVideo
 );
@@ -256,7 +256,7 @@ router.post(
   '/documents',
   authenticateToken,
   requireActiveUser,
-  uploadMiddleware.singleDocument,
+  uploadMiddleware.documentMemory,
   handleUploadError,
   validateDocumentUpload,
   DocumentController.uploadDocument
@@ -600,22 +600,6 @@ router.get(
   InteractionController.getContentByHashtag
 );
 
-// Community posts routes
-router.post(
-  '/community/posts',
-  authenticateToken,
-  requireActiveUser,
-  validateCommunityPostCreate,
-  InteractionController.createCommunityPost
-);
-
-router.get(
-  '/community/posts',
-  authenticateToken,
-  requireActiveUser,
-  validateCommunityPostQuery,
-  InteractionController.getCommunityPosts
-);
 
 // Admin routes removed - will be rebuilt from scratch
 
