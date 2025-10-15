@@ -80,7 +80,6 @@ sequenceDiagram
         deactivate Validation
     else Valid Input
         Validation-->>UI: Input valid
-        deactivate Validation
         
         UI->>Auth: POST /api/auth/register
         activate Auth
