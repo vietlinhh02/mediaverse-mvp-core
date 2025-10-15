@@ -2,6 +2,7 @@
 
 ## 1. Tổng Quan Authentication System
 
+
 ```mermaid
 graph TB
     subgraph "Authentication Methods"
